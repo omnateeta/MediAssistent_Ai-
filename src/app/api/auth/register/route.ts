@@ -1,0 +1,146 @@
+import { NextRequest, NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
+import { prisma } from "@/lib/prisma"
+import { validateEmail } from "@/lib/utils"
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const {
+      name,
+      email,
+      password,
+      role,
+      // Doctor fields
+      licenseNumber,
+      specialization,
+      hospitalAffiliation,
+      // Patient fields
+      dateOfBirth,
+      phoneNumber,
+    } = body
+
+    // Validation
+    if (!name || !email || !password || !role) {
+      return NextResponse.json(
+        { message: "Missing required fields" },
+        { status: 400 }
+      )
+    }
+
+    if (!validateEmail(email)) {
+      return NextResponse.json(
+        { message: "Invalid email format" },
+        { status: 400 }
+      )
+    }
+
+    if (password.length < 8) {
+      return NextResponse.json(
+        { message: "Password must be at least 8 characters long" },
+        { status: 400 }
+      )
+    }
+
+    if (!["PATIENT", "DOCTOR"].includes(role)) {
+      return NextResponse.json(
+        { message: "Invalid role specified" },
+        { status: 400 }
+      )
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    })
+
+    if (existingUser) {
+      return NextResponse.json(
+        { message: "User with this email already exists" },
+        { status: 409 }
+      )
+    }
+
+    // For doctors, check if license number is unique
+    if (role === "DOCTOR" && licenseNumber) {
+      const existingDoctor = await prisma.doctorProfile.findUnique({
+        where: { licenseNumber }
+      })
+
+      if (existingDoctor) {
+        return NextResponse.json(
+          { message: "Doctor with this license number already exists" },
+          { status: 409 }
+        )
+      }
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    // Create user with role-specific profile
+    const userData: any = {
+      name,
+      email,
+      password: hashedPassword,
+      role,
+      emailVerified: new Date(), // Auto-verify for demo purposes
+    }
+
+    if (role === "DOCTOR") {
+      userData.doctorProfile = {
+        create: {
+          licenseNumber: licenseNumber || "",
+          specialization: specialization ? [specialization] : [],
+          hospitalAffiliation: hospitalAffiliation || "",
+          isVerified: false, // Doctors need manual verification
+        }
+      }
+    } else if (role === "PATIENT") {
+      userData.patientProfile = {
+        create: {
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          phoneNumber: phoneNumber || "",
+        }
+      }
+    }
+
+    const user = await prisma.user.create({
+      data: userData,
+      include: {
+        patientProfile: true,
+        doctorProfile: true,
+      }
+    })
+
+    // Log registration event
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "REGISTER",
+        resource: "USER",
+        details: {
+          role: user.role,
+          method: "credentials",
+        },
+      },
+    })
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user
+
+    return NextResponse.json(
+      {
+        message: "User created successfully",
+        user: userWithoutPassword,
+      },
+      { status: 201 }
+    )
+  } catch (error) {
+    console.error("Registration error:", error)
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}

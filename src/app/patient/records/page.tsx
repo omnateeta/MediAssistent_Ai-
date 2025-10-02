@@ -13,7 +13,7 @@ import {
   CalendarIcon,
   UserIcon,
   EyeIcon,
-  DownloadIcon,
+  ArrowDownTrayIcon,
   FolderIcon,
   HeartIcon,
   BeakerIcon,
@@ -54,56 +54,21 @@ export default function PatientRecordsPage() {
 
   // Mock data - in real app, fetch from API
   useEffect(() => {
-    const mockRecords: MedicalRecord[] = [
-      {
-        id: "1",
-        title: "Annual Physical Examination",
-        type: "CHECKUP",
-        date: "2024-10-10",
-        doctorName: "Dr. Michael Chen",
-        description: "Comprehensive annual physical examination. All vital signs normal. Blood pressure: 120/80. Weight: 70kg. Height: 175cm.",
-        attachments: ["blood_test_results.pdf", "chest_xray.jpg"]
-      },
-      {
-        id: "2",
-        title: "Blood Test Results",
-        type: "LAB_RESULT",
-        date: "2024-10-08",
-        doctorName: "Dr. Michael Chen",
-        description: "Complete blood count and metabolic panel. All values within normal range. Cholesterol levels improved since last test.",
-        attachments: ["lab_results_oct2024.pdf"]
-      },
-      {
-        id: "3",
-        title: "Cardiology Consultation",
-        type: "CONSULTATION",
-        date: "2024-09-15",
-        doctorName: "Dr. Sarah Johnson",
-        description: "Follow-up consultation for chest pain. ECG normal. Stress test scheduled. Continue current medications.",
-        attachments: ["ecg_report.pdf", "consultation_notes.pdf"]
-      },
-      {
-        id: "4",
-        title: "Dermatology Treatment",
-        type: "TREATMENT",
-        date: "2024-09-28",
-        doctorName: "Dr. Emily Rodriguez",
-        description: "Treatment for skin rash. Prescribed topical corticosteroid. Condition improved significantly after 2 weeks.",
-        attachments: ["before_after_photos.jpg"]
-      },
-      {
-        id: "5",
-        title: "Vaccination Record",
-        type: "VACCINATION",
-        date: "2024-08-20",
-        doctorName: "Dr. Michael Chen",
-        description: "Annual flu vaccination administered. No adverse reactions observed. Next vaccination due in 12 months.",
-        attachments: ["vaccination_certificate.pdf"]
+    // Fetch medical records from API
+    async function fetchRecords() {
+      if (!session?.user?.id) return;
+      try {
+        const res = await fetch(`/api/patient/records?userId=${session.user.id}`);
+        if (!res.ok) throw new Error("Failed to fetch records");
+        const data = await res.json();
+        setRecords(data.records || []);
+      } catch (err) {
+        console.error(err);
+        setRecords([]);
       }
-    ]
-
-    setRecords(mockRecords)
-  }, [])
+    }
+    fetchRecords();
+  }, [session])
 
   const filteredRecords = records.filter(record => {
     const matchesSearch = 
@@ -350,7 +315,7 @@ export default function PatientRecordsPage() {
                         size="sm"
                         onClick={() => console.log(`Download record ${record.id}`)}
                       >
-                        <DownloadIcon className="w-4 h-4" />
+                        <ArrowDownTrayIcon className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="outline"

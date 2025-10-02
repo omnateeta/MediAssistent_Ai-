@@ -75,17 +75,12 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Account is deactivated")
         }
 
-        // For doctors, check if they are verified
-        if (user.role === 'DOCTOR' && user.doctorProfile && !user.doctorProfile.isVerified) {
-          throw new Error("Doctor account pending verification")
-        }
-
         return {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: user.name ?? "",
           role: user.role,
-          image: user.image,
+          image: user.image ?? "",
         }
       },
     }),
@@ -159,9 +154,8 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    signIn: "/auth/signin",
-    signUp: "/auth/signup",
-    error: "/auth/error",
+  signIn: "/auth/signin",
+  error: "/auth/error",
   },
   events: {
     async signOut({ token }) {

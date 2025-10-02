@@ -14,7 +14,11 @@ export const metadata: Metadata = {
   description: "Smart medical platform for automated patient intake, AI-powered diagnostics, and digital prescriptions for hospitals and clinics.",
   keywords: ["medical", "AI", "diagnostics", "healthcare", "telemedicine", "prescription"],
   authors: [{ name: "MediAssist AI Team" }],
-  viewport: "width=device-width, initial-scale=1",
+}
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

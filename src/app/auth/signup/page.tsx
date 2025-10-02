@@ -59,7 +59,7 @@ export default function SignUpPage() {
     }
 
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch("/api/auth/register-temp", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -84,9 +84,14 @@ export default function SignUpPage() {
       })
 
       if (result?.error) {
-        setError("Registration successful, but sign-in failed. Please try signing in manually.")
+        setError(`Sign-in failed: ${result.error}. Please try signing in manually with your new account.`)
       } else {
-        router.push(selectedRole === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard')
+        // Successful sign-in after registration
+        if (selectedRole === 'DOCTOR') {
+          router.push('/doctor/dashboard')
+        } else {
+          router.push('/patient/dashboard')
+        }
       }
     } catch (error: any) {
       setError(error.message || "An unexpected error occurred")

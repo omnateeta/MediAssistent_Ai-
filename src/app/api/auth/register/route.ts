@@ -49,6 +49,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Test database connection
+    try {
+      await prisma.$connect()
+    } catch (dbError) {
+      console.error("Database connection error:", dbError)
+      return NextResponse.json(
+        { message: "Database connection failed. Please ensure the database is set up and running." },
+        { status: 503 }
+      )
+    }
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
@@ -113,18 +124,23 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Log registration event
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "REGISTER",
-        resource: "USER",
-        details: {
-          role: user.role,
-          method: "credentials",
+    // Log registration event (with error handling)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "REGISTER",
+          resource: "USER",
+          details: {
+            role: user.role,
+            method: "credentials",
+          },
         },
-      },
-    })
+      })
+    } catch (auditError) {
+      console.warn("Failed to create audit log:", auditError)
+      // Continue without failing the registration
+    }
 
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user
@@ -138,9 +154,31 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error("Registration error:", error)
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      if (error.message.includes("connect")) {
+        return NextResponse.json(
+          { message: "Database connection failed. Please check your database configuration." },
+          { status: 503 }
+        )
+      }
+      if (error.message.includes("Unique constraint")) {
+        return NextResponse.json(
+          { message: "User with this email already exists" },
+          { status: 409 }
+        )
+      }
+    }
+
     return NextResponse.json(
-      { message: "Internal server error" },
+      { 
+        message: "Internal server error",
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }

@@ -28,9 +28,10 @@ export function Header({ className }: HeaderProps) {
     
     if (session.user.role === 'PATIENT') {
       return [
+        { name: 'Dashboard', href: '/patient/dashboard', icon: ChartBarIcon },
         { name: 'Book Appointment', href: '/patient/book', icon: CalendarIcon },
         { name: 'My Appointments', href: '/patient/appointments', icon: DocumentTextIcon },
-        { name: 'Medical Records', href: '/patient/records', icon: ChartBarIcon },
+        { name: 'Prescriptions', href: '/patient/prescriptions', icon: DocumentTextIcon },
       ]
     }
     

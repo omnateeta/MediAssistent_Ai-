@@ -267,7 +267,7 @@ export default function BookAppointmentPage() {
                   value={formData.specialization}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, specialization: value, doctorId: "" }))}
                 >
-                  <SelectTrigger label="Specialization" required>
+                  <SelectTrigger label="Specialization">
                     <SelectValue placeholder="Select specialization" />
                   </SelectTrigger>
                   <SelectContent>

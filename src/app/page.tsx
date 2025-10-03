@@ -62,8 +62,22 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
+    <div
+      className="min-h-screen relative"
+      style={{
+  backgroundImage: 'url(/backgroundimg.jpg)',
+  backgroundSize: 'contain',
+  backgroundPosition: 'top center',
+  backgroundRepeat: 'no-repeat',
+  backgroundAttachment: 'scroll',
+  minHeight: '100vh',
+  width: '100vw',
+      }}
+    >
+      {/* Overlay for light effect */}
+  <div className="absolute inset-0 bg-white/40 pointer-events-none z-0" />
+      <div className="relative z-10">
+  {/* Hero Section */}
       <section className="relative overflow-hidden py-20 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="lg:grid lg:grid-cols-12 lg:gap-8">
@@ -229,6 +243,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      </div>
     </div>
   )
 }

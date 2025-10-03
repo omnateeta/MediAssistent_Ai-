@@ -174,18 +174,30 @@ export default function DoctorDashboardPage() {
     <div className="min-h-screen py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 flex items-center gap-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
+            className="flex items-center gap-4"
           >
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              Welcome back, {session?.user.name}
-            </h1>
-            <p className="text-gray-600">
-              Here's what's happening with your patients today
-            </p>
+            <img
+              src="/file.svg"
+              alt="Smart Medical AI Assistant"
+              className="w-20 h-20 rounded-lg shadow-md border border-gray-200 bg-white"
+              style={{ objectFit: 'contain' }}
+            />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                Smart Medical <span className="text-blue-600">AI Assistant</span>
+              </h1>
+              <p className="text-gray-600">
+                Welcome back, {session?.user.name}
+              </p>
+              <p className="text-gray-500 text-sm">
+                Here's what's happening with your patients today
+              </p>
+            </div>
           </motion.div>
         </div>
 

@@ -15,7 +15,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   EyeIcon,
-  DownloadIcon,
+  ArrowDownTrayIcon, // Use this for download
   ShareIcon,
   PrinterIcon
 } from "@heroicons/react/24/outline"
@@ -345,7 +345,7 @@ export default function PatientPrescriptionsPage() {
                         size="sm"
                         onClick={() => handleDownload(prescription.id)}
                       >
-                        <DownloadIcon className="w-4 h-4" />
+                        <ArrowDownTrayIcon className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"

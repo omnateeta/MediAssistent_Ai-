@@ -173,9 +173,9 @@ export async function POST(request: NextRequest) {
 
     const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { 
+      {
         message: "Internal server error",
-        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
       },
       { status: 500 }
     )

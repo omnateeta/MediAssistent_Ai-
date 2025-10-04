@@ -3,7 +3,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import bcrypt from "bcryptjs"
-import { prisma } from "@/lib/prisma"
+import { prisma, isPrismaClientReady } from "@/lib/prisma"
 
 declare module "next-auth" {
   interface Session {
@@ -33,7 +33,8 @@ declare module "next-auth/jwt" {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Lazily attach PrismaAdapter only when client is ready to avoid module-eval crashes
+  adapter: isPrismaClientReady ? PrismaAdapter(prisma) : undefined,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -47,40 +48,50 @@ export const authOptions: NextAuthOptions = {
         role: { label: "Role", type: "text" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Missing credentials")
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          include: {
-            patientProfile: true,
-            doctorProfile: true,
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            console.warn('[NextAuth][Credentials] Missing credentials for authorize()')
+            throw new Error('Missing credentials')
           }
-        })
 
-        if (!user) {
-          throw new Error("User not found")
-        }
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+            include: {
+              patientProfile: true,
+              doctorProfile: true,
+            }
+          })
 
-        // For OAuth users, password might not be set
-        if (user.password) {
-          const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
-          if (!isPasswordValid) {
-            throw new Error("Invalid password")
+          if (!user) {
+            console.warn(`[NextAuth][Credentials] authorize() user not found for email=${credentials.email}`)
+            throw new Error('User not found')
           }
-        }
 
-        if (!user.isActive) {
-          throw new Error("Account is deactivated")
-        }
+          // For OAuth users, password might not be set
+          if (user.password) {
+            const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
+            if (!isPasswordValid) {
+              console.warn(`[NextAuth][Credentials] authorize() invalid password for userId=${user.id}`)
+              throw new Error('Invalid password')
+            }
+          }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name ?? "",
-          role: user.role,
-          image: user.image ?? "",
+          if (!user.isActive) {
+            console.warn(`[NextAuth][Credentials] authorize() account deactivated userId=${user.id}`)
+            throw new Error('Account is deactivated')
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name ?? "",
+            role: user.role,
+            image: user.image ?? "",
+          }
+        } catch (err) {
+          // Log the error for debugging but do not expose sensitive info
+          console.error('[NextAuth][Credentials] authorize() error:', String(err))
+          throw err
         }
       },
     }),

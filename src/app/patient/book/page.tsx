@@ -15,10 +15,10 @@ import {
   UserIcon,
   MicrophoneIcon,
   CloudArrowUpIcon,
+  DocumentTextIcon,
   SparklesIcon,
   CheckCircleIcon
 } from "@heroicons/react/24/outline"
-import { DocumentTextIcon } from "@heroicons/react/24/outline"
 import { motion } from "framer-motion"
 
 interface Doctor {

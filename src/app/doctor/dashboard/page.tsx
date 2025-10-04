@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import useAuthGuard from '@/hooks/useAuthGuard'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,9 +39,13 @@ interface DashboardStats {
   completedToday: number
 }
 
+
+
+
+
+
 export default function DoctorDashboardPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
+  const { session, status, checked } = useAuthGuard('DOCTOR')
   
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFilter, setSelectedFilter] = useState("all")
@@ -53,20 +56,6 @@ export default function DoctorDashboardPage() {
     totalPatients: 0,
     completedToday: 0
   })
-
-  // Redirect if not authenticated or not a doctor
-  useEffect(() => {
-    if (status === "loading") return
-    if (!session) {
-      router.push("/auth/signin")
-      return
-    }
-    if (session.user.role !== "DOCTOR") {
-      router.push("/")
-      return
-    }
-  }, [session, status, router])
-
   // Mock data - in real app, fetch from API
   useEffect(() => {
     const mockAppointments: Appointment[] = [
@@ -130,6 +119,8 @@ export default function DoctorDashboardPage() {
     setAppointments(mockAppointments)
     setStats(mockStats)
   }, [])
+
+  if (!checked) return <div className="flex items-center justify-center min-h-screen">Loading...</div>
 
   const filteredAppointments = appointments.filter(appointment => {
     const matchesSearch = 

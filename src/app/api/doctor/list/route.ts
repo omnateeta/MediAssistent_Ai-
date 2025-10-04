@@ -8,7 +8,7 @@ export async function GET() {
       where: { isAvailable: true },
     })
 
-    const payload = doctors.map(d => ({
+    const payload = doctors.map((d: any) => ({
       id: d.id,
       name: d.user?.name ?? d.licenseNumber,
       specialization: d.specialization ?? [],

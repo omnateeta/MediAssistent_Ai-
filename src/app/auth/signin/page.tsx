@@ -14,6 +14,7 @@ export default function SignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || "/"
+  const from = searchParams.get("from") || null
   
   const [formData, setFormData] = useState({
     email: "",
@@ -33,12 +34,25 @@ export default function SignInPage() {
         email: formData.email,
         password: formData.password,
         redirect: false,
+        callbackUrl,
       })
 
       if (result?.error) {
         setError(result.error)
       } else {
-        // Get the updated session to check user role
+        // If credentials sign-in succeeded, redirect to callbackUrl (or role-specific)
+        if (callbackUrl && callbackUrl !== '/') {
+          // callbackUrl may be an encoded pathname from booking page
+          try {
+            const decoded = decodeURIComponent(callbackUrl)
+            router.push(decoded)
+            return
+          } catch (e) {
+            // fallthrough
+          }
+        }
+
+        // Get the updated session to check user role as fallback
         const session = await getSession()
         if (session?.user.role === 'DOCTOR') {
           router.push('/doctor/dashboard')
@@ -93,6 +107,12 @@ export default function SignInPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {from === 'booking' && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md text-sm">
+                You need to sign in to complete your booking. After sign in you'll be returned to the booking page.
+              </div>
+            )}
+
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                 {error}

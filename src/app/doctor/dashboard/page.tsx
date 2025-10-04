@@ -53,68 +53,49 @@ export default function DoctorDashboardPage() {
     totalPatients: 0,
     completedToday: 0
   })
-  // Mock data - in real app, fetch from API
+  // Fetch real data from API
   useEffect(() => {
-    const mockAppointments: Appointment[] = [
-      {
-        id: "1",
-        referenceId: "REF-ABC123",
-        patientName: "John Smith",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "09:00",
-        status: "SCHEDULED",
-        urgencyLevel: "MEDIUM",
-        chiefComplaint: "Chest pain and shortness of breath",
-        hasAiSummary: true,
-        isNewPatient: false
-      },
-      {
-        id: "2", 
-        referenceId: "REF-DEF456",
-        patientName: "Sarah Johnson",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "10:30",
-        status: "IN_PROGRESS",
-        urgencyLevel: "HIGH",
-        chiefComplaint: "Severe headache with nausea",
-        hasAiSummary: true,
-        isNewPatient: true
-      },
-      {
-        id: "3",
-        referenceId: "REF-GHI789",
-        patientName: "Michael Chen",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "14:00",
-        status: "SCHEDULED",
-        urgencyLevel: "LOW",
-        chiefComplaint: "Annual checkup and blood pressure monitoring",
-        hasAiSummary: false,
-        isNewPatient: false
-      },
-      {
-        id: "4",
-        referenceId: "REF-JKL012",
-        patientName: "Emily Rodriguez",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "15:30",
-        status: "COMPLETED",
-        urgencyLevel: "MEDIUM",
-        chiefComplaint: "Follow-up for diabetes management",
-        hasAiSummary: true,
-        isNewPatient: false
-      }
-    ]
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/doctor/appointments')
+        if (response.ok) {
+          const data = await response.json()
+          const appointmentsData: Appointment[] = data.appointments.map((appt: any) => ({
+            id: appt.id,
+            referenceId: appt.referenceId,
+            patientName: appt.patient.user.name || 'Unknown Patient',
+            scheduledDate: new Date(appt.scheduledDate).toISOString().split('T')[0],
+            scheduledTime: new Date(appt.scheduledDate).toTimeString().slice(0, 5),
+            status: appt.status,
+            urgencyLevel: appt.aiSummary?.urgencyLevel || 'LOW',
+            chiefComplaint: appt.chiefComplaint || 'No complaint specified',
+            hasAiSummary: !!appt.aiSummary,
+            isNewPatient: false // TODO: Implement logic to check if new patient
+          }))
 
-    const mockStats: DashboardStats = {
-      todayAppointments: 8,
-      pendingReviews: 3,
-      totalPatients: 156,
-      completedToday: 2
+          setAppointments(appointmentsData)
+
+          // Calculate stats
+          const today = new Date().toISOString().split('T')[0]
+          const todayAppts = appointmentsData.filter(appt => appt.scheduledDate === today)
+          const pendingReviews = appointmentsData.filter(appt => ['SCHEDULED', 'CONFIRMED'].includes(appt.status)).length
+          const totalPatients = new Set(appointmentsData.map(appt => appt.patientName)).size
+          const completedToday = todayAppts.filter(appt => appt.status === 'COMPLETED').length
+
+          setStats({
+            todayAppointments: todayAppts.length,
+            pendingReviews,
+            totalPatients,
+            completedToday
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching appointments:', error)
+        // Keep empty state on error
+      }
     }
 
-    setAppointments(mockAppointments)
-    setStats(mockStats)
+    fetchData()
   }, [])
 
   if (!checked) return <div className="flex items-center justify-center min-h-screen">Loading...</div>

@@ -1,14 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { HeartIcon, EyeIcon, EyeSlashIcon, UserIcon, UserGroupIcon } from "@heroicons/react/24/outline"
-import { motion } from "framer-motion"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import PasswordStrength from "@/components/auth/PasswordStrength"
+import { HeartIcon, EyeIcon, EyeSlashIcon, UserIcon, UserGroupIcon, CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline"
+import { motion, AnimatePresence } from "framer-motion"
 
 type UserRole = "PATIENT" | "DOCTOR"
 
@@ -22,11 +24,9 @@ export default function SignUpPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    // Doctor-specific fields
     licenseNumber: "",
     specialization: "",
     hospitalAffiliation: "",
-    // Patient-specific fields
     dateOfBirth: "",
     phoneNumber: "",
   })
@@ -34,149 +34,111 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+  const [isEmailAvailable, setIsEmailAvailable] = useState<boolean | null>(null)
+  const [showPasswordStrength, setShowPasswordStrength] = useState(false)
+
+  // Email validation and availability check
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  const checkEmailAvailability = async (email: string) => {
+    if (!validateEmail(email)) {
+      setIsEmailAvailable(null)
+      return
+    }
+
+    try {
+      const response = await fetch('/api/auth/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      const data = await response.json()
+      setIsEmailAvailable(data.available)
+    } catch (error) {
+      setIsEmailAvailable(null)
+    }
+  }
+
+  // Debounced email check
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.email) {
+        checkEmailAvailability(formData.email)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [formData.email])
 
   const handleRoleSelection = (role: UserRole) => {
     setSelectedRole(role)
     setStep(2)
+    setError("")
+    setSuccess("")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+    setSuccess("")
 
-    // Ensure a role was selected and is valid
-    if (!selectedRole || (selectedRole !== 'PATIENT' && selectedRole !== 'DOCTOR')) {
-      const msg = 'Invalid role selected. Please choose Patient or Doctor.'
-      setError(msg)
-      try { window.alert(msg) } catch {};
+    if (!selectedRole) {
+      setError('Please select a role')
       setIsLoading(false)
       return
     }
-    // Validation
+
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
       setIsLoading(false)
       return
     }
 
-    if (formData.password.length < 8) {
-      setError("Password must be at least 8 characters long")
-      setIsLoading(false)
-      return
-    }
-
     try {
-          const response = await fetch("/api/auth/register", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          role: selectedRole,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...formData, role: selectedRole }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        // If server indicates a role mismatch, show a popup and inline error specifically
-        if (data?.conflict === 'role_mismatch') {
-          const msg = data.message || 'This email is already registered with a different role.'
-          setError(msg)
-          try { window.alert(msg) } catch {}
-          setIsLoading(false)
-          return
-        }
-
-        // Generic failure
-        const msg = data?.message || 'Registration failed'
-        setError(msg)
-        try { window.alert(msg) } catch {}
+        setError(data?.message || 'Registration failed')
         setIsLoading(false)
         return
       }
 
-      // Auto sign in after successful registration - pass role so Credentials provider enforces it
+      setSuccess("Account created successfully! Signing you in...")
+
+      // Auto sign in
       const result = await signIn("credentials", {
-        email: formData.email,
+        email: formData.email.toLowerCase(),
         password: formData.password,
-        role: selectedRole ?? undefined,
+        role: selectedRole,
         redirect: false,
       })
 
-      // If signIn returned an error, show it and stop
       if (result?.error) {
-        setError(`Sign-in failed: ${result.error}. Please try signing in manually with your new account.`)
+        setError(`Account created but sign-in failed: ${result.error}`)
+        setTimeout(() => router.push('/auth/signin'), 3000)
         setIsLoading(false)
         return
       }
 
-      // Create tab token as fallback for session issues
-      try {
-        const r = await fetch('/api/tab-login', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ email: formData.email, password: formData.password }) 
-        })
-        const j = await r.json()
-        if (j?.token) { 
-          try { sessionStorage.setItem('tab_token', j.token) } catch {} 
-        }
-      } catch (e) {
-        console.warn('Failed to create tab token:', e)
-      }
+      // Redirect to dashboard
+      setTimeout(() => {
+        const dashboardUrl = selectedRole === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'
+        router.push(dashboardUrl)
+      }, 1000)
 
-      // Wait for session to be established with multiple attempts
-      const waitForSession = async (maxAttempts = 10, delay = 500) => {
-        for (let i = 0; i < maxAttempts; i++) {
-          try {
-            const session = await getSession()
-            if (session && session.user && session.user.role === selectedRole) {
-              return true
-            }
-          } catch (e) {
-            console.warn(`Session check attempt ${i + 1} failed:`, e)
-          }
-          await new Promise(res => setTimeout(res, delay))
-        }
-        return false
-      }
-
-      const sessionEstablished = await waitForSession()
-      
-      if (sessionEstablished) {
-        // Session is active and role matches - redirect to appropriate dashboard
-        if (selectedRole === 'DOCTOR') {
-          router.push('/doctor/dashboard')
-        } else {
-          router.push('/patient/dashboard')
-        }
-        setIsLoading(false)
-        return
-      }
-
-      // If session still not established, redirect to signin with helpful context
-      const cbPath = selectedRole === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'
-      const cb = encodeURIComponent(cbPath)
-      console.warn('Session not established after registration, redirecting to signin')
-      router.push(`/auth/signin?callbackUrl=${cb}&expectedRole=${encodeURIComponent(selectedRole ?? '')}`)
-      setIsLoading(false)
-      return
     } catch (error: any) {
       setError(error.message || "An unexpected error occurred")
     } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleGoogleSignUp = async () => {
-    setIsLoading(true)
-    try {
-      await signIn("google", { callbackUrl: "/" })
-    } catch (error) {
-      setError("Failed to sign up with Google")
       setIsLoading(false)
     }
   }
@@ -208,16 +170,14 @@ export default function SignUpPage() {
             <>
               <CardHeader>
                 <CardTitle>Choose Your Role</CardTitle>
-                <CardDescription>
-                  Select how you'll be using MediAssist AI
-                </CardDescription>
+                <CardDescription>Select how you'll be using MediAssist AI</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleRoleSelection("PATIENT")}
-                  className="w-full p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                  className="w-full p-6 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
                 >
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
@@ -250,43 +210,6 @@ export default function SignUpPage() {
                     </div>
                   </div>
                 </motion.button>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-gray-500">Or continue with</span>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleGoogleSignUp}
-                  disabled={isLoading}
-                >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                    <path
-                      fill="currentColor"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                    />
-                    <path
-                      fill="currentColor"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    />
-                  </svg>
-                  Sign up with Google
-                </Button>
               </CardContent>
             </>
           ) : (
@@ -295,24 +218,48 @@ export default function SignUpPage() {
                 <CardTitle>
                   {selectedRole === "DOCTOR" ? "Doctor Registration" : "Patient Registration"}
                 </CardTitle>
-                <CardDescription>
-                  Complete your profile to get started
-                </CardDescription>
+                <CardDescription>Complete your profile to get started</CardDescription>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setStep(1)}
+                  onClick={() => {setStep(1); setError(""); setSuccess("");}}
                   className="w-fit"
                 >
                   ← Back to role selection
                 </Button>
               </CardHeader>
               <CardContent className="space-y-6">
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
-                    {error}
-                  </div>
-                )}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex items-start space-x-3 p-4 bg-red-50 border border-red-200 rounded-lg"
+                    >
+                      <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm text-red-800 font-medium">Registration Failed</p>
+                        <p className="text-sm text-red-700">{error}</p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {success && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex items-start space-x-3 p-4 bg-green-50 border border-green-200 rounded-lg"
+                    >
+                      <CheckCircleIcon className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm text-green-800 font-medium">Success!</p>
+                        <p className="text-sm text-green-700">{success}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <Input
@@ -325,15 +272,33 @@ export default function SignUpPage() {
                     autoComplete="name"
                   />
 
-                  <Input
-                    label="Email Address"
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Enter your email"
-                    autoComplete="email"
-                  />
+                  <div className="relative">
+                    <Input
+                      label="Email Address"
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="Enter your email"
+                      autoComplete="email"
+                      className={isEmailAvailable === false ? 'border-red-500' : isEmailAvailable === true ? 'border-green-500' : ''}
+                    />
+                    {formData.email && (
+                      <div className="absolute right-3 top-9">
+                        {isEmailAvailable === true ? (
+                          <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                        ) : isEmailAvailable === false ? (
+                          <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
+                        ) : null}
+                      </div>
+                    )}
+                    {isEmailAvailable === false && (
+                      <p className="text-sm text-red-600 mt-1">This email is already registered</p>
+                    )}
+                    {isEmailAvailable === true && (
+                      <p className="text-sm text-green-600 mt-1">Email is available</p>
+                    )}
+                  </div>
 
                   <div className="relative">
                     <Input
@@ -342,22 +307,24 @@ export default function SignUpPage() {
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="Create a password"
-                      helperText="Must be at least 8 characters long"
+                      onFocus={() => setShowPasswordStrength(true)}
+                      placeholder="Create a secure password"
                       autoComplete="new-password"
+                      className="pr-12"
                     />
                     <button
                       type="button"
                       className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
                       onClick={() => setShowPassword(!showPassword)}
                     >
-                      {showPassword ? (
-                        <EyeSlashIcon className="w-5 h-5" />
-                      ) : (
-                        <EyeIcon className="w-5 h-5" />
-                      )}
+                      {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                     </button>
                   </div>
+
+                  <PasswordStrength 
+                    password={formData.password} 
+                    show={showPasswordStrength && formData.password.length > 0}
+                  />
 
                   <div className="relative">
                     <Input
@@ -368,18 +335,21 @@ export default function SignUpPage() {
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                       placeholder="Confirm your password"
                       autoComplete="new-password"
+                      className="pr-12"
                     />
                     <button
                       type="button"
                       className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     >
-                      {showConfirmPassword ? (
-                        <EyeSlashIcon className="w-5 h-5" />
-                      ) : (
-                        <EyeIcon className="w-5 h-5" />
-                      )}
+                      {showConfirmPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                     </button>
+                    {formData.password && formData.confirmPassword && formData.password === formData.confirmPassword && (
+                      <p className="text-sm text-green-600 mt-1">Passwords match</p>
+                    )}
+                    {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                      <p className="text-sm text-red-600 mt-1">Passwords do not match</p>
+                    )}
                   </div>
 
                   {selectedRole === "DOCTOR" ? (
@@ -393,17 +363,46 @@ export default function SignUpPage() {
                         placeholder="Enter your license number"
                         autoComplete="off"
                       />
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700">Medical Specialization *</label>
+                        <Select 
+                          value={formData.specialization}
+                          onValueChange={(value) => setFormData({ ...formData, specialization: value })}
+                          required
+                        >
+                          <SelectTrigger className="h-12 border-2 hover:border-blue-300 focus:border-blue-500 font-bold">
+                            <SelectValue placeholder="🩺 Choose your medical specialization" className="font-bold" />
+                          </SelectTrigger>
+                          <SelectContent 
+                            className="max-h-[300px] w-full z-[1000] bg-gray-50 p-2 shadow-xl border-2 border-gray-200"
+                            side="bottom"
+                            align="start"
+                            sideOffset={4}
+                            avoidCollisions={false}
+                          >
+                            {["Cardiology", "Dermatology", "Endocrinology", "Gastroenterology", "General Practice", "Neurology", "Oncology", "Orthopedics", "Psychiatry", "Pulmonology"].map((specialization) => (
+                              <SelectItem 
+                                key={specialization} 
+                                value={specialization}
+                                className="p-0 h-auto cursor-pointer focus:bg-transparent hover:bg-transparent data-[highlighted]:bg-transparent mb-2"
+                              >
+                                <div className="w-full p-3 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:shadow-md transition-all duration-300 bg-white">
+                                  <div className="flex items-center">
+                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                      <span className="text-base">🩺</span>
+                                    </div>
+                                    <span className="font-bold text-gray-900 text-base">{specialization}</span>
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
                       <Input
-                        label="Specialization"
-                        type="text"
-                        required
-                        value={formData.specialization}
-                        onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                        placeholder="e.g., Cardiology, Pediatrics"
-                        autoComplete="off"
-                      />
-                      <Input
-                        label="Hospital/Clinic Affiliation"
+                        label="Hospital/Clinic Affiliation (Optional)"
                         type="text"
                         value={formData.hospitalAffiliation}
                         onChange={(e) => setFormData({ ...formData, hospitalAffiliation: e.target.value })}
@@ -414,14 +413,14 @@ export default function SignUpPage() {
                   ) : (
                     <>
                       <Input
-                        label="Date of Birth"
+                        label="Date of Birth (Optional)"
                         type="date"
                         value={formData.dateOfBirth}
                         onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                         autoComplete="bday"
                       />
                       <Input
-                        label="Phone Number"
+                        label="Phone Number (Optional)"
                         type="tel"
                         value={formData.phoneNumber}
                         onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
@@ -433,25 +432,31 @@ export default function SignUpPage() {
 
                   <Button
                     type="submit"
-                    className="w-full"
+                    className="w-full h-12 text-base font-semibold"
                     variant="medical"
                     loading={isLoading}
-                    disabled={isLoading}
+                    disabled={isLoading || isEmailAvailable === false}
                   >
-                    Create Account
+                    {isLoading ? 'Creating Account...' : 'Create Account'}
                   </Button>
                 </form>
 
                 <div className="text-center">
                   <span className="text-sm text-gray-600">
                     Already have an account?{" "}
-                    <Link
-                      href="/auth/signin"
-                      className="font-medium text-blue-600 hover:text-blue-500"
-                    >
+                    <Link href="/auth/signin" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
                       Sign in
                     </Link>
                   </span>
+                </div>
+
+                <div className="text-center pt-4 border-t border-gray-200">
+                  <p className="text-xs text-gray-500">
+                    By creating an account, you agree to our{" "}
+                    <a href="/terms" className="text-blue-600 hover:text-blue-500">Terms of Service</a>
+                    {" "}and{" "}
+                    <a href="/privacy" className="text-blue-600 hover:text-blue-500">Privacy Policy</a>
+                  </p>
                 </div>
               </CardContent>
             </>

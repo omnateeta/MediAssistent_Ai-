@@ -35,11 +35,15 @@ declare module "next-auth/jwt" {
 export const authOptions: NextAuthOptions = {
   // Lazily attach PrismaAdapter only when client is ready to avoid module-eval crashes
   adapter: isPrismaClientReady ? PrismaAdapter(prisma) : undefined,
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   providers: [
+    // Temporarily disable Google OAuth due to invalid client secret
+    /*
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    */
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -49,6 +53,8 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
+          console.log('[NextAuth][Credentials] Starting authorization for email:', credentials?.email)
+          
           if (!credentials?.email || !credentials?.password) {
             console.warn('[NextAuth][Credentials] Missing credentials for authorize()')
             throw new Error('Missing credentials')
@@ -66,6 +72,8 @@ export const authOptions: NextAuthOptions = {
             console.warn(`[NextAuth][Credentials] authorize() user not found for email=${credentials.email}`)
             throw new Error('User not found')
           }
+
+          console.log(`[NextAuth][Credentials] Found user with role: ${user.role}, active: ${user.isActive}`)
 
           // For OAuth users, password might not be set
           if (user.password) {
@@ -87,6 +95,7 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Account is deactivated')
           }
 
+          console.log(`[NextAuth][Credentials] Successfully authenticated user: ${user.id}`)
           return {
             id: user.id,
             email: user.email,
@@ -115,18 +124,23 @@ export const authOptions: NextAuthOptions = {
       
       // Log authentication events for security audit
       if (account) {
-        await prisma.auditLog.create({
-          data: {
-            userId: token.id,
-            action: "LOGIN",
-            resource: "AUTH",
-            details: {
-              provider: account.provider,
-              type: account.type,
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId: token.id,
+              action: "LOGIN",
+              resource: "AUTH",
+              details: {
+                provider: account.provider,
+                type: account.type,
+              },
+              ipAddress: "unknown", // This would be populated in middleware
             },
-            ipAddress: "unknown", // This would be populated in middleware
-          },
-        }).catch(console.error)
+          })
+        } catch (error) {
+          console.error('[NextAuth][JWT] Failed to create audit log:', error)
+          // Don't fail authentication if audit logging fails
+        }
       }
 
       return token
@@ -139,7 +153,13 @@ export const authOptions: NextAuthOptions = {
       return session
     },
     async signIn({ user, account, profile }) {
-      // Handle OAuth sign-in
+      // Only handle credentials login for now (Google OAuth disabled)
+      if (account?.provider === "credentials") {
+        return true
+      }
+      
+      // Temporarily disable Google OAuth handling
+      /*
       if (account?.provider === "google") {
         try {
           const existingUser = await prisma.user.findUnique({
@@ -166,6 +186,7 @@ export const authOptions: NextAuthOptions = {
           return false
         }
       }
+      */
 
       return true
     },
@@ -178,15 +199,25 @@ export const authOptions: NextAuthOptions = {
     async signOut({ token }) {
       // Log sign out events
       if (token?.id) {
-        await prisma.auditLog.create({
-          data: {
-            userId: token.id,
-            action: "LOGOUT",
-            resource: "AUTH",
-            details: {},
-          },
-        }).catch(console.error)
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId: token.id,
+              action: "LOGOUT",
+              resource: "AUTH",
+              details: {},
+            },
+          })
+        } catch (error) {
+          console.error('[NextAuth][SignOut] Failed to create audit log:', error)
+        }
       }
+    },
+    async signIn({ user, account, profile }) {
+      console.log(`[NextAuth][Event] Sign in attempt for user: ${user.email}, provider: ${account?.provider}`)
+    },
+    async session({ session, token }) {
+      console.log(`[NextAuth][Event] Session created for user: ${session.user.email}`)
     },
   },
 }

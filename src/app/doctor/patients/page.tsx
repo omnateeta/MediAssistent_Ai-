@@ -25,21 +25,30 @@ import { motion } from "framer-motion"
 
 interface Patient {
   id: string
+  userId: string
   name: string
-  age: number
+  age: number | null
   gender: string
   contactInfo: string
   email: string
-  lastVisit: string
+  lastVisit: string | null
   nextAppointment: string | null
   condition: string
   riskLevel: string
   totalVisits: number
+  completedVisits: number
   hasActiveIssues: boolean
   emergencyContact: string
+  address: string
+  bloodType: string
+  height: number | null
+  weight: number | null
   medicalHistory: string[]
   currentMedications: string[]
+  currentPrescriptions: string[]
   allergies: string[]
+  chronicConditions: string[]
+  insuranceProvider: string | null
 }
 
 export default function DoctorPatientsPage() {
@@ -50,6 +59,8 @@ export default function DoctorPatientsPage() {
   const [selectedFilter, setSelectedFilter] = useState("all")
   const [selectedRisk, setSelectedRisk] = useState("all")
   const [patients, setPatients] = useState<Patient[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Redirect if not authenticated or not a doctor
   useEffect(() => {
@@ -64,121 +75,48 @@ export default function DoctorPatientsPage() {
     }
   }, [session, status, router])
 
-  // Mock data - in real app, fetch from API
+  // Fetch real-time patients data from API
   useEffect(() => {
-    const mockPatients: Patient[] = [
-      {
-        id: "1",
-        name: "John Smith",
-        age: 45,
-        gender: "Male",
-        contactInfo: "+1 (555) 123-4567",
-        email: "john.smith@email.com",
-        lastVisit: "2024-10-10",
-        nextAppointment: "2024-10-15",
-        condition: "Hypertension, CAD",
-        riskLevel: "HIGH",
-        totalVisits: 12,
-        hasActiveIssues: true,
-        emergencyContact: "+1 (555) 123-9999",
-        medicalHistory: ["Hypertension", "Coronary Artery Disease", "Former smoker"],
-        currentMedications: ["Lisinopril 10mg", "Metoprolol 50mg", "Atorvastatin 20mg"],
-        allergies: ["Penicillin", "Shellfish"]
-      },
-      {
-        id: "2",
-        name: "Maria Garcia",
-        age: 32,
-        gender: "Female",
-        contactInfo: "+1 (555) 987-6543",
-        email: "maria.garcia@email.com",
-        lastVisit: "2024-09-20",
-        nextAppointment: "2024-10-15",
-        condition: "Healthy",
-        riskLevel: "LOW",
-        totalVisits: 3,
-        hasActiveIssues: false,
-        emergencyContact: "+1 (555) 987-0000",
-        medicalHistory: ["No significant medical history"],
-        currentMedications: ["None"],
-        allergies: ["None known"]
-      },
-      {
-        id: "3",
-        name: "Robert Johnson",
-        age: 67,
-        gender: "Male",
-        contactInfo: "+1 (555) 456-7890",
-        email: "robert.johnson@email.com",
-        lastVisit: "2024-10-12",
-        nextAppointment: null,
-        condition: "Diabetes Type 2, Obesity",
-        riskLevel: "HIGH",
-        totalVisits: 28,
-        hasActiveIssues: true,
-        emergencyContact: "+1 (555) 456-0000",
-        medicalHistory: ["Type 2 Diabetes", "Obesity", "Sleep Apnea", "Osteoarthritis"],
-        currentMedications: ["Metformin 1000mg", "Insulin glargine", "Lisinopril 5mg"],
-        allergies: ["Sulfa drugs"]
-      },
-      {
-        id: "4",
-        name: "Sarah Wilson",
-        age: 28,
-        gender: "Female",
-        contactInfo: "+1 (555) 321-0987",
-        email: "sarah.wilson@email.com",
-        lastVisit: "2024-10-08",
-        nextAppointment: "2024-11-15",
-        condition: "Allergic rhinitis",
-        riskLevel: "LOW",
-        totalVisits: 5,
-        hasActiveIssues: false,
-        emergencyContact: "+1 (555) 321-0000",
-        medicalHistory: ["Allergic rhinitis", "Eczema"],
-        currentMedications: ["Cetirizine 10mg PRN"],
-        allergies: ["Environmental allergens", "Latex"]
-      },
-      {
-        id: "5",
-        name: "David Brown",
-        age: 52,
-        gender: "Male",
-        contactInfo: "+1 (555) 654-3210",
-        email: "david.brown@email.com",
-        lastVisit: "2024-09-30",
-        nextAppointment: "2024-10-16",
-        condition: "Chronic back pain",
-        riskLevel: "MEDIUM",
-        totalVisits: 15,
-        hasActiveIssues: true,
-        emergencyContact: "+1 (555) 654-0000",
-        medicalHistory: ["Herniated disc L4-L5", "Chronic pain", "Depression"],
-        currentMedications: ["Gabapentin 300mg", "Ibuprofen 600mg", "Sertraline 50mg"],
-        allergies: ["Codeine"]
-      },
-      {
-        id: "6",
-        name: "Emily Davis",
-        age: 41,
-        gender: "Female",
-        contactInfo: "+1 (555) 789-0123",
-        email: "emily.davis@email.com",
-        lastVisit: "2024-08-15",
-        nextAppointment: null,
-        condition: "Migraine, Anxiety",
-        riskLevel: "MEDIUM",
-        totalVisits: 8,
-        hasActiveIssues: true,
-        emergencyContact: "+1 (555) 789-0000",
-        medicalHistory: ["Chronic migraines", "Generalized anxiety disorder"],
-        currentMedications: ["Sumatriptan 50mg PRN", "Escitalopram 10mg"],
-        allergies: ["Aspirin"]
+    async function fetchPatients() {
+      if (!session?.user?.id) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const res = await fetch('/api/doctor/patients', {
+          credentials: 'include'
+        });
+        
+        if (res.status === 401) {
+          router.push('/auth/signin');
+          return;
+        }
+        
+        const data = await res.json();
+        
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setPatients(data.patients || []);
+        }
+      } catch (error) {
+        console.error('Error fetching patients:', error);
+        setError('Failed to load patients. Please try again.');
+        setPatients([]);
+      } finally {
+        setLoading(false);
       }
-    ]
-    
-    setPatients(mockPatients)
-  }, [])
+    }
+
+    if (session?.user?.role === 'DOCTOR') {
+      fetchPatients();
+      
+      // Poll for updates every 30 seconds
+      const interval = setInterval(fetchPatients, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [session, router]);
 
   // Filter patients based on search and filters
   const filteredPatients = patients.filter(patient => {
@@ -209,10 +147,13 @@ export default function DoctorPatientsPage() {
     }
   }
 
-  if (status === "loading") {
+  if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading patients...</p>
+        </div>
       </div>
     )
   }
@@ -232,10 +173,34 @@ export default function DoctorPatientsPage() {
                 Patient Directory
               </h1>
               <p className="text-gray-600">
-                Manage and review your patient records
+                Manage and review your patient records ({patients.length} total patients)
               </p>
             </div>
             <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                onClick={async () => {
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    const res = await fetch('/api/doctor/patients', { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.error) {
+                      setError(data.error);
+                    } else {
+                      setPatients(data.patients || []);
+                    }
+                  } catch (error) {
+                    setError('Failed to refresh patients');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+              >
+                <ClockIcon className="w-4 h-4 mr-2" />
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </Button>
               <Button variant="outline" asChild>
                 <Link href="/doctor/dashboard">
                   <ChartBarIcon className="w-4 h-4 mr-2" />
@@ -392,15 +357,15 @@ export default function DoctorPatientsPage() {
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
                           <div className="text-sm text-gray-600">
-                            <p><strong>Age:</strong> {patient.age} | <strong>Gender:</strong> {patient.gender}</p>
+                            <p><strong>Age:</strong> {patient.age || 'Unknown'} | <strong>Gender:</strong> {patient.gender}</p>
                             <p className="flex items-center mt-1">
                               <PhoneIcon className="w-4 h-4 mr-1" />
                               {patient.contactInfo}
                             </p>
                           </div>
                           <div className="text-sm text-gray-600">
-                            <p><strong>Total Visits:</strong> {patient.totalVisits}</p>
-                            <p><strong>Last Visit:</strong> {new Date(patient.lastVisit).toLocaleDateString()}</p>
+                            <p><strong>Total Visits:</strong> {patient.totalVisits} ({patient.completedVisits} completed)</p>
+                            <p><strong>Last Visit:</strong> {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString() : 'No visits yet'}</p>
                           </div>
                         </div>
                         
@@ -415,10 +380,16 @@ export default function DoctorPatientsPage() {
                               Next: {new Date(patient.nextAppointment).toLocaleDateString()}
                             </span>
                           )}
-                          {patient.allergies.length > 0 && patient.allergies[0] !== "None known" && (
+                          {patient.allergies && patient.allergies.length > 0 && patient.allergies[0] !== "None known" && (
                             <span className="flex items-center text-red-600">
                               <ExclamationTriangleIcon className="w-4 h-4 mr-1" />
-                              Allergies: {patient.allergies.slice(0, 2).join(", ")}
+                              Allergies: {patient.allergies.slice(0, 2).join(', ')}
+                            </span>
+                          )}
+                          {patient.bloodType && patient.bloodType !== 'Unknown' && (
+                            <span className="flex items-center text-purple-600">
+                              <HeartIcon className="w-4 h-4 mr-1" />
+                              Blood Type: {patient.bloodType}
                             </span>
                           )}
                         </div>
@@ -431,7 +402,7 @@ export default function DoctorPatientsPage() {
                         size="sm"
                         asChild
                       >
-                        <Link href={`/doctor/patients/${patient.id}`}>
+                        <Link href={`/patient/${patient.userId}`}>
                           <EyeIcon className="w-4 h-4 mr-1" />
                           View Details
                         </Link>
@@ -465,15 +436,26 @@ export default function DoctorPatientsPage() {
                 </motion.div>
               ))}
               
-              {filteredPatients.length === 0 && (
+              {filteredPatients.length === 0 && !loading && (
                 <div className="text-center py-12 text-gray-500">
                   <UserGroupIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium mb-2">No patients found</h3>
+                  <h3 className="text-lg font-medium mb-2">
+                    {error ? 'Error loading patients' : 'No patients found'}
+                  </h3>
                   <p className="mb-4">
-                    {searchQuery || selectedFilter !== "all" || selectedRisk !== "all"
+                    {error ? error :
+                     searchQuery || selectedFilter !== "all" || selectedRisk !== "all"
                       ? "Try adjusting your search criteria"
-                      : "No patients in your directory"}
+                      : "No patients have appointments with you yet"}
                   </p>
+                  {error && (
+                    <Button 
+                      variant="medical" 
+                      onClick={() => window.location.reload()}
+                    >
+                      Try Again
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

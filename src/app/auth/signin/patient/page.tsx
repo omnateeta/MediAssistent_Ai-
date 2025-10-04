@@ -1,80 +1,147 @@
 "use client"
 
-import { useState } from "react"
-import { signIn, getSession } from "next-auth/react"
+import { useState, useEffect } from "react"
+import { signIn, useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import SignInForm from '@/components/auth/SignInForm'
-import { HeartIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline"
+import AuthDebug from '@/components/debug/AuthDebug'
+import { HeartIcon, CheckCircleIcon } from "@heroicons/react/24/outline"
 import { motion } from "framer-motion"
 
 export default function PatientSignInPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || "/patient/dashboard"
+  const { data: session, status } = useSession()
 
-  const [formData, setFormData] = useState({ email: "", password: "" })
-  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Debug session state
+  useEffect(() => {
+    console.log('Patient Sign-In Page - Session status:', status)
+    console.log('Patient Sign-In Page - Session data:', session)
+    console.log('Patient Sign-In Page - User role:', session?.user?.role)
+  }, [session, status])
+
+  // Auto-redirect if already authenticated as patient
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role === 'PATIENT') {
+      console.log('Already authenticated as patient, redirecting to:', callbackUrl)
+      window.location.href = callbackUrl
+    }
+  }, [status, session, callbackUrl])
+
+  const handleSubmit = async (data: { email: string; password: string; remember?: boolean }) => {
     setIsLoading(true)
     setError("")
 
     try {
+      console.log('Starting sign-in process for patient:', data.email)
+      
       const result = await signIn("credentials", {
-        email: formData.email,
-        password: formData.password,
+        email: data.email,
+        password: data.password,
         role: 'PATIENT',
         redirect: false,
       })
 
-      if ((result as any)?.error) {
-        setError((result as any).error)
-      } else {
-        // create tab token and await it so the auth fallback sees it after redirect
-        try {
-          const r = await fetch('/api/tab-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: formData.email, password: formData.password }) })
-          const j = await r.json().catch(() => null)
-          if (j?.token) { 
-            try { 
-              sessionStorage.setItem('tab_token', j.token) 
-            } catch (e) {
-              console.warn('Failed to store tab token:', e)
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to create tab token:', e)
-        }
+      console.log('SignIn result:', result)
 
-        // Wait briefly for next-auth session to become available (poll)
-        const waitForSession = async (timeout = 3000) => {
-          const start = Date.now()
-          while (Date.now() - start < timeout) {
-            const s = await getSession()
-            if (s && s.user && s.user.role === 'PATIENT') return true
-            await new Promise(res => setTimeout(res, 200))
-          }
-          return false
-        }
-
-        const ok = await waitForSession(3000)
-        if (!ok) {
-          // if session not active yet, send user to sign-in with context
-          router.push(`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}&expectedRole=PATIENT`)
-          return
-        }
-
-        router.push(callbackUrl)
+      if (result?.error) {
+        console.error('Sign-in error:', result.error)
+        setError(result.error)
+        setIsLoading(false)
+        return
       }
-    } catch (err) {
-      setError("An unexpected error occurred")
+
+      // Create fallback session token for multi-role support
+      try {
+        const tabResponse = await fetch('/api/tab-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: data.email, password: data.password })
+        })
+        const tabData = await tabResponse.json()
+        if (tabData?.token) {
+          sessionStorage.setItem('tab_token_PATIENT', tabData.token)
+          sessionStorage.setItem('tab_token_current', tabData.token)
+        }
+      } catch (e) {
+        console.warn('Failed to create session token:', e)
+      }
+
+      console.log('Sign-in successful, redirecting to:', callbackUrl)
+      
+      // Force page reload to ensure session is properly established
+      window.location.href = callbackUrl
+    } catch (err: any) {
+      console.error('Sign-in error:', err)
+      setError(err?.message || "An unexpected error occurred")
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // If already authenticated as patient, show dashboard access
+  if (status === "authenticated" && session?.user?.role === 'PATIENT') {
+    return (
+      <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="flex items-center justify-center">
+              <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-r from-green-600 to-green-700 rounded-lg">
+                <HeartIcon className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">Welcome Back!</h2>
+            <p className="mt-2 text-sm text-gray-600">You're already signed in as a patient</p>
+          </div>
+
+          <Card>
+            <CardContent className="space-y-6 pt-6">
+              <div className="flex items-center p-3 bg-green-50 rounded-lg border border-green-200">
+                <CheckCircleIcon className="w-5 h-5 text-green-600 mr-2" />
+                <span className="text-green-800 font-medium">Patient access is active</span>
+              </div>
+              
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => router.push('/patient/dashboard')}
+                  className="w-full" 
+                  variant="medical"
+                >
+                  Go to Patient Dashboard
+                </Button>
+                
+                <Button 
+                  onClick={() => router.push('/auth/signin/doctor')}
+                  className="w-full" 
+                  variant="outline"
+                >
+                  Sign In as Doctor (Multi-Role)
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    )
+  }
+
+  // Loading state
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -86,68 +153,50 @@ export default function PatientSignInPage() {
               <HeartIcon className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Patient Sign in</h2>
-          <p className="mt-2 text-sm text-gray-600">Sign in to your patient account</p>
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">Patient Sign In</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Sign in to access your patient dashboard
+          </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your patient credentials</CardDescription>
+            <CardTitle>Patient Portal Access</CardTitle>
+            <CardDescription>Enter your credentials to continue</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <SignInForm defaultEmail={formData.email} loading={isLoading} submitLabel="Sign In" onSubmit={async ({ email, password }) => {
-              // reuse handleSubmit logic: call NextAuth then create tab token and route
-              setIsLoading(true)
-              setError("")
-              try {
-                const result = await signIn("credentials", { email, password, role: 'PATIENT', redirect: false })
-                if ((result as any)?.error) {
-                  setError((result as any).error)
-                } else {
-                  try {
-                    const r = await fetch('/api/tab-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
-                    const j = await r.json()
-                    if (j.token) { 
-                      try { 
-                        sessionStorage.setItem('tab_token', j.token) 
-                      } catch (e) {
-                        console.warn('Failed to store tab token:', e)
-                      }
-                    }
-                  } catch (e) {
-                    console.warn('Failed to create tab token:', e)
-                  }
-
-                  // Wait for session to be established
-                  const waitForSession = async (timeout = 3000) => {
-                    const start = Date.now()
-                    while (Date.now() - start < timeout) {
-                      const s = await getSession()
-                      if (s && s.user && s.user.role === 'PATIENT') return true
-                      await new Promise(res => setTimeout(res, 200))
-                    }
-                    return false
-                  }
-
-                  const ok = await waitForSession(3000)
-                  if (!ok) {
-                    router.push(`/auth/signin/patient?callbackUrl=${encodeURIComponent(callbackUrl)}&expectedRole=PATIENT`)
-                    return
-                  }
-
-                  router.push(callbackUrl)
-                }
-              } catch (e) { setError('An unexpected error occurred') }
-              setIsLoading(false)
-            }} />
+            <SignInForm 
+              onSubmit={handleSubmit}
+              loading={isLoading}
+              error={error}
+              submitLabel="Sign In as Patient"
+              showGoogleSignIn={false}
+              autoFocus={true}
+            />
 
             <div className="text-center">
-              <span className="text-sm text-gray-600">Don't have an account? <Link href="/auth/signup" className="font-medium text-blue-600 hover:text-blue-500">Sign up</Link></span>
+              <span className="text-sm text-gray-600">
+                Don't have an account?{" "}
+                <Link href="/auth/signup" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+                  Sign up
+                </Link>
+              </span>
+            </div>
+            
+            <div className="text-center pt-4 border-t border-gray-200">
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">Need to sign in as a doctor?</p>
+                <Link href="/auth/signin/doctor" className="text-sm text-blue-600 hover:text-blue-500 transition-colors">
+                  Doctor Sign In →
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>
       </motion.div>
+      
+      {/* Debug component for development */}
+      <AuthDebug />
     </div>
   )
 }

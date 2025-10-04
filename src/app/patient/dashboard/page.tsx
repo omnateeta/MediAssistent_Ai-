@@ -39,133 +39,126 @@ interface RecentActivity {
   status: string
 }
 
+interface DashboardStats {
+  totalAppointments: number
+  upcomingAppointments: number
+  completedAppointments: number
+  activePrescriptions: number
+}
+
 export default function PatientDashboardPage() {
   const { session, status, checked } = useAuthGuard('PATIENT')
   
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([])
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalAppointments: 0,
+    upcomingAppointments: 0,
+    completedAppointments: 0,
+    activePrescriptions: 0
+  })
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  // Fetch live appointments and derive recent activity
+  // Fetch real-time dashboard data including stats and activities
   useEffect(() => {
     let mounted = true
-  let pollInterval: number | null = null
+    let pollInterval: number | null = null
 
-    const fetchData = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const res = await fetch('/api/patient/appointments', { credentials: 'include' })
+        setLoading(true)
+        console.log('Fetching dashboard data, session:', session?.user)
+        
+        // Try with multi-role authentication if NextAuth session fails
+        let headers: Record<string, string> = {}
+        if (typeof window !== 'undefined') {
+          const patientToken = sessionStorage.getItem('tab_token_PATIENT')
+          if (patientToken) {
+            headers['Authorization'] = `Bearer ${patientToken}`
+          }
+        }
+        
+        const res = await fetch('/api/patient/dashboard', { 
+          credentials: 'include',
+          headers
+        })
+        
         if (res.status === 401) {
           // Not authenticated - send to sign in with callback so user returns here after login
           const cb = encodeURIComponent(window.location.pathname + window.location.search)
           router.push(`/auth/signin/patient?callbackUrl=${cb}`)
           return
         }
-        const data = await res.json()
-        const appointments = data?.appointments ?? []
-
-        // Map appointments to UpcomingAppointment shape
-        const mapped: UpcomingAppointment[] = appointments.map((a: any) => {
-          const scheduled = a.scheduledDate ? new Date(a.scheduledDate) : null
-          const scheduledDate = scheduled ? scheduled.toISOString().split('T')[0] : ''
-          const scheduledTime = scheduled ? scheduled.toISOString().split('T')[1].slice(0,5) : ''
-          const doctorName = a.doctor?.user?.name ?? a.doctor?.name ?? 'Unknown'
-          const specialization = a.doctor?.specialization ?? 'General'
-          return {
-            id: a.id,
-            referenceId: a.referenceId ?? `APPT-${String(a.id).slice(0,8)}`,
-            doctorName,
-            specialization,
-            scheduledDate,
-            scheduledTime,
-            status: a.status ?? 'SCHEDULED'
-          }
-        })
-
-        // Derive recent activity from appointments, aiSummary and prescription
-        const activities: RecentActivity[] = []
-        appointments.forEach((a: any) => {
-          const scheduled = a.scheduledDate ? new Date(a.scheduledDate) : new Date()
-          const dateStr = scheduled.toISOString().split('T')[0]
-          // appointment activity
-          activities.push({
-            id: `appt_${a.id}`,
-            type: 'appointment',
-            title: `Appointment ${a.status ?? 'Scheduled'}`,
-            description: `With ${a.doctor?.user?.name ?? 'your doctor'} on ${dateStr}`,
-            date: dateStr,
-            status: (a.status ?? '').toLowerCase()
+        
+        if (!res.ok) {
+          const errorData = await res.text()
+          console.error('Dashboard API error:', {
+            status: res.status,
+            statusText: res.statusText,
+            body: errorData
           })
-
-          // ai summary (if present)
-          if (a.aiSummary) {
-            // aiSummary might be array or object
-            const summaries = Array.isArray(a.aiSummary) ? a.aiSummary : [a.aiSummary]
-            summaries.forEach((s: any, idx: number) => {
-              activities.push({
-                id: `ai_${a.id}_${idx}`,
-                type: 'ai_summary',
-                title: `AI Analysis Ready`,
-                description: s.summaryText ?? 'AI analysis available',
-                date: s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : dateStr,
-                status: 'completed'
-              })
-            })
-          }
-
-          // prescription (if present)
-          if (a.prescription) {
-            const pres = a.prescription
-            const presList = Array.isArray(pres) ? pres : [pres]
-            presList.forEach((p: any, i: number) => {
-              const presDate = p.issuedDate ? new Date(p.issuedDate).toISOString().split('T')[0] : dateStr
-              activities.push({
-                id: `pres_${a.id}_${i}`,
-                type: 'prescription',
-                title: `Prescription ${p.status ?? 'Issued'}`,
-                description: `Prescription from ${a.doctor?.user?.name ?? 'doctor'}`,
-                date: presDate,
-                status: (p.status ?? '').toLowerCase()
-              })
-            })
-          }
-        })
-
-        // Sort activities by date desc
-        activities.sort((x, y) => (y.date || '').localeCompare(x.date || ''))
-
-        if (mounted) {
-          setUpcomingAppointments(mapped)
-          setRecentActivity(activities)
+          throw new Error(`Failed to fetch dashboard data: ${res.status} ${res.statusText}`)
+        }
+        
+        const data = await res.json()
+        
+        if (mounted && data.success) {
+          setDashboardStats(data.data.stats)
+          setUpcomingAppointments(data.data.upcomingAppointments || [])
+          setRecentActivity(data.data.recentActivity || [])
         }
       } catch (err) {
-        console.error('Error fetching dashboard data', err)
+        console.error('Error fetching dashboard data:', err)
+        // Fallback to empty data instead of breaking
+        if (mounted) {
+          setDashboardStats({
+            totalAppointments: 0,
+            upcomingAppointments: 0,
+            completedAppointments: 0,
+            activePrescriptions: 0
+          })
+          setUpcomingAppointments([])
+          setRecentActivity([])
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
     // Only fetch when auth guard has checked and session exists
-    fetchData()
-    // Poll every 30s
-  pollInterval = window.setInterval(fetchData, 30_000)
+    if (checked && session?.user) {
+      fetchDashboardData()
+      // Poll every 60s for dashboard updates
+      pollInterval = window.setInterval(fetchDashboardData, 60_000)
+    }
 
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') fetchData()
+      if (document.visibilityState === 'visible' && checked && session?.user) {
+        fetchDashboardData()
+      }
     }
     document.addEventListener('visibilitychange', onVisibility)
 
     return () => {
       mounted = false
-    if (pollInterval !== null) clearInterval(pollInterval)
+      if (pollInterval !== null) clearInterval(pollInterval)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [])
+  }, [checked, session?.user])
 
   // Wait for auth guard to finish checking
-  if (!checked) return <div className="flex items-center justify-center min-h-screen">Loading...</div>
-  const stats = {
-    totalAppointments: 8,
-    upcomingAppointments: upcomingAppointments.length,
-    completedAppointments: 6,
-    activePrescriptions: 2
+  if (!checked || loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   if (status === "loading") {
@@ -196,28 +189,28 @@ export default function PatientDashboardPage() {
           {[
             {
               title: "Total Appointments",
-              value: stats.totalAppointments,
+              value: dashboardStats.totalAppointments,
               icon: CalendarIcon,
               color: "text-blue-600 bg-blue-50",
               href: "/patient/appointments"
             },
             {
               title: "Upcoming",
-              value: stats.upcomingAppointments,
+              value: dashboardStats.upcomingAppointments,
               icon: ClockIcon,
               color: "text-orange-600 bg-orange-50",
               href: "/patient/appointments"
             },
             {
               title: "Completed",
-              value: stats.completedAppointments,
+              value: dashboardStats.completedAppointments,
               icon: CheckCircleIcon,
               color: "text-green-600 bg-green-50",
               href: "/patient/appointments"
             },
             {
               title: "Active Prescriptions",
-              value: stats.activePrescriptions,
+              value: dashboardStats.activePrescriptions,
               icon: DocumentTextIcon,
               color: "text-purple-600 bg-purple-50",
               href: "/patient/prescriptions"

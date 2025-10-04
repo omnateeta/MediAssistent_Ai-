@@ -23,10 +23,17 @@ import { motion } from "framer-motion"
 
 interface Doctor {
   id: string
+  userId: string
   name: string
+  email: string
   specialization: string[]
   consultationFee: number
   isAvailable: boolean
+  isVerified: boolean
+  yearsOfExperience?: number
+  hospitalAffiliation?: string
+  qualifications?: string[]
+  languagesSpoken?: string[]
 }
 
 interface TimeSlot {
@@ -42,7 +49,11 @@ export default function BookAppointmentPage() {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [loadingDoctors, setLoadingDoctors] = useState(false)
+  const [doctorsError, setDoctorsError] = useState<string | null>(null)
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
+  const [specializations, setSpecializations] = useState<string[]>([])
+  const [loadingSpecializations, setLoadingSpecializations] = useState(true)  
   const [isRecording, setIsRecording] = useState(false)
   const [recordingDuration, setRecordingDuration] = useState(0)
   
@@ -81,45 +92,41 @@ export default function BookAppointmentPage() {
     }
   }, [session, status, router])
 
-  // Mock data - in real app, this would come from API
-  const specializations = [
-    "Cardiology",
-    "Dermatology", 
-    "Endocrinology",
-    "Gastroenterology",
-    "General Practice",
-    "Neurology",
-    "Oncology",
-    "Orthopedics",
-    "Pediatrics",
-    "Psychiatry",
-    "Pulmonology",
-    "Urology"
-  ]
-
-  const mockDoctors: Doctor[] = [
-    {
-      id: "1",
-      name: "Dr. Sarah Johnson",
-      specialization: ["Cardiology"],
-      consultationFee: 150,
-      isAvailable: true,
-    },
-    {
-      id: "2", 
-      name: "Dr. Michael Chen",
-      specialization: ["General Practice"],
-      consultationFee: 100,
-      isAvailable: true,
-    },
-    {
-      id: "3",
-      name: "Dr. Emily Rodriguez",
-      specialization: ["Pediatrics"],
-      consultationFee: 120,
-      isAvailable: true,
+  // Load available specializations from database
+  useEffect(() => {
+    const loadSpecializations = async () => {
+      try {
+        const res = await fetch('/api/doctors/specializations')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.specializations.length > 0) {
+            setSpecializations(data.specializations)
+          } else {
+            // Fallback to predefined list if no doctors in database
+            setSpecializations([
+              "Cardiology", "Dermatology", "Endocrinology", "Gastroenterology",
+              "General Practice", "Neurology", "Oncology", "Orthopedics",
+              "Pediatrics", "Psychiatry", "Pulmonology", "Urology"
+            ])
+          }
+        } else {
+          throw new Error('Failed to fetch specializations')
+        }
+      } catch (error) {
+        console.error('Error loading specializations:', error)
+        // Fallback to predefined list
+        setSpecializations([
+          "Cardiology", "Dermatology", "Endocrinology", "Gastroenterology",
+          "General Practice", "Neurology", "Oncology", "Orthopedics",
+          "Pediatrics", "Psychiatry", "Pulmonology", "Urology"
+        ])
+      } finally {
+        setLoadingSpecializations(false)
+      }
     }
-  ]
+
+    loadSpecializations()
+  }, [])
 
   const mockTimeSlots: TimeSlot[] = [
     { time: "09:00", available: true },
@@ -136,28 +143,41 @@ export default function BookAppointmentPage() {
     { time: "16:30", available: true },
   ]
 
+  // Fetch doctors based on selected specialization from real database
   useEffect(() => {
-    // fetch doctors from backend (fall back to mock data)
     const loadDoctors = async () => {
-      try {
-        const res = await fetch('/api/doctor/list')
-        if (res.ok) {
-          const json = await res.json()
-          const backendDoctors: Doctor[] = json.doctors || []
-          setDoctors(backendDoctors)
-          return
-        }
-      } catch (e) {
-        // ignore
+      if (!formData.specialization) {
+        setDoctors([])
+        setDoctorsError(null)
+        return
       }
 
-      if (formData.specialization) {
-        const filteredDoctors = mockDoctors.filter(doctor =>
-          doctor.specialization.includes(formData.specialization)
-        )
-        setDoctors(filteredDoctors)
-      } else {
-        setDoctors(mockDoctors)
+      setLoadingDoctors(true)
+      setDoctorsError(null)
+      
+      try {
+        const res = await fetch(`/api/doctors/by-specialization?specialization=${encodeURIComponent(formData.specialization)}`)
+        
+        if (!res.ok) {
+          throw new Error(`Failed to fetch doctors: ${res.status}`)
+        }
+        
+        const data = await res.json()
+        
+        if (data.success) {
+          setDoctors(data.doctors || [])
+          if (data.doctors.length === 0) {
+            setDoctorsError(`No doctors available for ${formData.specialization} specialization`)
+          }
+        } else {
+          throw new Error(data.error || 'Failed to fetch doctors')
+        }
+      } catch (error) {
+        console.error('Error fetching doctors:', error)
+        setDoctorsError('Failed to load doctors. Please try again.')
+        setDoctors([])
+      } finally {
+        setLoadingDoctors(false)
       }
     }
 
@@ -323,49 +343,204 @@ export default function BookAppointmentPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <Select 
-                  value={formData.specialization}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, specialization: value, doctorId: "" }))}
-                >
-                  <SelectTrigger label="Specialization">
-                    <SelectValue placeholder="Select specialization" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {specializations.map((spec) => (
-                      <SelectItem key={spec} value={spec}>
-                        {spec}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Medical Specialization</label>
+                  <Select 
+                    value={formData.specialization}
+                    onValueChange={(value) => {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        specialization: value, 
+                        doctorId: "" // Clear doctor selection when specialization changes
+                      }))
+                    }}
+                  >
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder={loadingSpecializations ? "Loading specializations..." : "Choose a medical specialization"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {specializations.map((spec) => (
+                        <SelectItem key={spec} value={spec} className="py-3">
+                          <div className="flex items-center">
+                            <span className="mr-2">🩺</span>
+                            {spec}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                {doctors.length > 0 && (
+                {formData.specialization && (
                   <div className="space-y-3">
                     <label className="text-sm font-medium">Available Doctors</label>
-                    {doctors.map((doctor) => (
-                      <div
-                        key={doctor.id}
-                        className={`
-                          p-4 border rounded-lg cursor-pointer transition-colors
-                          ${formData.doctorId === doctor.id 
-                            ? 'border-blue-500 bg-blue-50' 
-                            : 'border-gray-200 hover:border-gray-300'
-                          }
-                        `}
-                        onClick={() => setFormData(prev => ({ ...prev, doctorId: doctor.id }))}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium text-gray-900">{doctor.name}</h3>
-                            <p className="text-sm text-gray-600">{doctor.specialization.join(", ")}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium text-gray-900">${doctor.consultationFee}</p>
-                            <p className="text-sm text-green-600">Available</p>
-                          </div>
-                        </div>
+                    
+                    {loadingDoctors && (
+                      <div className="flex items-center justify-center p-8 text-gray-500">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                        Loading doctors for {formData.specialization}...
                       </div>
-                    ))}
+                    )}
+                    
+                    {doctorsError && (
+                      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center">
+                          <div className="text-yellow-600 mr-2">⚠️</div>
+                          <p className="text-yellow-800 text-sm">{doctorsError}</p>
+                        </div>
+                        <p className="text-yellow-700 text-xs mt-1">
+                          Please try selecting a different specialization or contact support.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {!loadingDoctors && !doctorsError && doctors.length > 0 && (
+                      <div className="space-y-4">
+                        <Select 
+                          value={formData.doctorId}
+                          onValueChange={(value) => {
+                            setFormData(prev => ({ ...prev, doctorId: value }))
+                          }}
+                          disabled={loadingDoctors}
+                        >
+                          <SelectTrigger className="h-auto min-h-[60px] p-4 border-2 hover:border-blue-300 focus:border-blue-500 font-bold">
+                            <SelectValue placeholder="👨‍⚕️ Choose your doctor" className="font-bold">
+                              {formData.doctorId && (
+                                <div className="flex justify-between items-center w-full">
+                                  <div className="text-left">
+                                    <p className="font-bold text-gray-900 text-base">
+                                      👨‍⚕️ {doctors.find(d => d.id === formData.doctorId)?.name}
+                                    </p>
+                                    <p className="text-sm text-blue-700 font-bold">
+                                      {doctors.find(d => d.id === formData.doctorId)?.specialization.join(", ")}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-black text-green-800 text-lg">
+                                      ${doctors.find(d => d.id === formData.doctorId)?.consultationFee}
+                                    </p>
+                                    <div className="flex items-center justify-end mt-1">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                                      <p className="text-xs text-green-600 font-bold">Available</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent 
+                            className="max-h-[400px] w-full z-[1000] bg-gray-50 p-3 shadow-xl border-2 border-gray-200"
+                            side="bottom"
+                            align="start"
+                            sideOffset={4}
+                            avoidCollisions={false}
+                          >
+                            {doctors.map((doctor) => (
+                              <SelectItem 
+                                key={doctor.id} 
+                                value={doctor.id}
+                                className="p-0 h-auto cursor-pointer focus:bg-transparent hover:bg-transparent data-[highlighted]:bg-transparent mb-3"
+                              >
+                                <div className="w-full p-5 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all duration-300 bg-white shadow-sm">
+                                  <div className="flex justify-between items-start w-full">
+                                    <div className="flex-1 text-left">
+                                      <div className="flex items-center mb-3">
+                                        <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-blue-200 rounded-full flex items-center justify-center mr-4 shadow-sm">
+                                          <span className="text-xl">🩺</span>
+                                        </div>
+                                        <div>
+                                          <h3 className="font-bold text-gray-900 text-lg">{doctor.name}</h3>
+                                          <p className="text-base text-blue-700 font-bold">{doctor.specialization.join(", ")}</p>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-2 ml-16">
+                                        {doctor.hospitalAffiliation && (
+                                          <div className="flex items-center text-sm text-gray-700 font-semibold">
+                                            <span className="mr-3 text-base">🏥</span>
+                                            <span>{doctor.hospitalAffiliation}</span>
+                                          </div>
+                                        )}
+                                        
+                                        <div className="flex items-center space-x-6">
+                                          {doctor.yearsOfExperience && (
+                                            <div className="flex items-center text-sm text-gray-700 font-semibold">
+                                              <span className="mr-2 text-base">📅</span>
+                                              <span>{doctor.yearsOfExperience} years exp.</span>
+                                            </div>
+                                          )}
+                                          {doctor.isVerified && (
+                                            <div className="flex items-center text-sm text-green-700 font-bold">
+                                              <span className="mr-2 text-base">✅</span>
+                                              <span>Verified Doctor</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        
+                                        {doctor.qualifications && doctor.qualifications.length > 0 && (
+                                          <div className="flex items-center text-sm text-gray-700 font-medium">
+                                            <span className="mr-3 text-base">🎓</span>
+                                            <span className="font-semibold">{doctor.qualifications.slice(0, 2).join(", ")}{doctor.qualifications.length > 2 && '...'}</span>
+                                          </div>
+                                        )}
+                                        
+                                        {doctor.languagesSpoken && doctor.languagesSpoken.length > 0 && (
+                                          <div className="flex items-center text-sm text-gray-700 font-medium">
+                                            <span className="mr-3 text-base">🌐</span>
+                                            <span className="font-semibold">{doctor.languagesSpoken.slice(0, 3).join(", ")}{doctor.languagesSpoken.length > 3 && '...'}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="text-right ml-6">
+                                      <div className="bg-gradient-to-r from-green-200 to-green-300 px-4 py-3 rounded-xl mb-3 text-center shadow-md border border-green-300">
+                                        <div className="text-2xl font-black text-green-900">${doctor.consultationFee}</div>
+                                        <div className="text-sm text-green-800 font-bold">Consultation Fee</div>
+                                      </div>
+                                      <div className="flex items-center justify-center bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+                                        <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                                        <span className="text-sm text-green-700 font-bold">Available Now</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        
+                        {/* Selected Doctor Details Box */}
+                        {formData.doctorId && (
+                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <h4 className="font-medium text-blue-900 mb-2">Selected Doctor Details</h4>
+                            {(() => {
+                              const selectedDoctor = doctors.find(d => d.id === formData.doctorId)
+                              return selectedDoctor ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                  <div>
+                                    <p><span className="font-medium text-blue-800">Doctor:</span> {selectedDoctor.name}</p>
+                                    <p><span className="font-medium text-blue-800">Specialization:</span> {selectedDoctor.specialization.join(", ")}</p>
+                                    {selectedDoctor.hospitalAffiliation && (
+                                      <p><span className="font-medium text-blue-800">Hospital:</span> {selectedDoctor.hospitalAffiliation}</p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p><span className="font-medium text-blue-800">Consultation Fee:</span> ${selectedDoctor.consultationFee}</p>
+                                    {selectedDoctor.yearsOfExperience && (
+                                      <p><span className="font-medium text-blue-800">Experience:</span> {selectedDoctor.yearsOfExperience} years</p>
+                                    )}
+                                    {selectedDoctor.languagesSpoken && selectedDoctor.languagesSpoken.length > 0 && (
+                                      <p><span className="font-medium text-blue-800">Languages:</span> {selectedDoctor.languagesSpoken.join(", ")}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : null
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

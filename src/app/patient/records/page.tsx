@@ -24,11 +24,21 @@ import { motion } from "framer-motion"
 interface MedicalRecord {
   id: string
   title: string
-  type: string
-  date: string
-  doctorName: string
+  recordType: string
+  recordDate: string
   description: string
   attachments: string[]
+  createdBy?: string
+  recordData?: {
+    appointmentId?: string
+    referenceId?: string
+    doctorName?: string
+    specialization?: string
+    aiSummaryId?: string
+    prescriptionId?: string
+    urgencyLevel?: string
+    confidenceScore?: number
+  }
 }
 
 export default function PatientRecordsPage() {
@@ -38,14 +48,7 @@ export default function PatientRecordsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFilter, setSelectedFilter] = useState("all")
   const [records, setRecords] = useState<MedicalRecord[]>([])
-  const [showForm, setShowForm] = useState(false)
-  const [formState, setFormState] = useState({
-    title: '',
-    recordType: 'CHECKUP',
-    recordDate: new Date().toISOString().slice(0,10),
-    description: '',
-    attachments: ''
-  })
+
 
   // Redirect if not authenticated or not a patient
   useEffect(() => {
@@ -88,24 +91,24 @@ export default function PatientRecordsPage() {
   const filteredRecords = records.filter(record => {
     const matchesSearch = 
       record.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      record.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (record.recordData?.doctorName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       record.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      record.type.toLowerCase().includes(searchQuery.toLowerCase())
+      record.recordType.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesFilter = 
       selectedFilter === "all" ||
-      (selectedFilter === "checkup" && record.type === "CHECKUP") ||
-      (selectedFilter === "lab" && record.type === "LAB_RESULT") ||
-      (selectedFilter === "consultation" && record.type === "CONSULTATION") ||
-      (selectedFilter === "treatment" && record.type === "TREATMENT") ||
-      (selectedFilter === "vaccination" && record.type === "VACCINATION")
+      (selectedFilter === "diagnosis" && record.recordType === "DIAGNOSIS") ||
+      (selectedFilter === "lab" && record.recordType === "LAB_RESULT") ||
+      (selectedFilter === "consultation" && record.recordType === "CONSULTATION") ||
+      (selectedFilter === "treatment" && record.recordType === "TREATMENT") ||
+      (selectedFilter === "vaccination" && record.recordType === "VACCINATION")
     
     return matchesSearch && matchesFilter
   })
 
-  const getRecordIcon = (type: string) => {
-    switch (type) {
-      case "CHECKUP":
+  const getRecordIcon = (recordType: string) => {
+    switch (recordType) {
+      case "DIAGNOSIS":
         return <HeartIcon className="w-5 h-5 text-green-600" />
       case "LAB_RESULT":
         return <BeakerIcon className="w-5 h-5 text-blue-600" />
@@ -120,9 +123,9 @@ export default function PatientRecordsPage() {
     }
   }
 
-  const getRecordColor = (type: string) => {
-    switch (type) {
-      case "CHECKUP":
+  const getRecordColor = (recordType: string) => {
+    switch (recordType) {
+      case "DIAGNOSIS":
         return "bg-green-50 border-green-200"
       case "LAB_RESULT":
         return "bg-blue-50 border-blue-200"
@@ -170,26 +173,26 @@ export default function PatientRecordsPage() {
               color: "text-gray-600 bg-gray-50"
             },
             {
-              title: "Checkups",
-              value: records.filter(r => r.type === "CHECKUP").length,
+              title: "Diagnoses",
+              value: records.filter(r => r.recordType === "DIAGNOSIS").length,
               icon: HeartIcon,
               color: "text-green-600 bg-green-50"
             },
             {
               title: "Lab Results",
-              value: records.filter(r => r.type === "LAB_RESULT").length,
+              value: records.filter(r => r.recordType === "LAB_RESULT").length,
               icon: BeakerIcon,
               color: "text-blue-600 bg-blue-50"
             },
             {
               title: "Consultations",
-              value: records.filter(r => r.type === "CONSULTATION").length,
+              value: records.filter(r => r.recordType === "CONSULTATION").length,
               icon: UserIcon,
               color: "text-purple-600 bg-purple-50"
             },
             {
               title: "Treatments",
-              value: records.filter(r => r.type === "TREATMENT").length,
+              value: records.filter(r => r.recordType === "TREATMENT").length,
               icon: DocumentTextIcon,
               color: "text-orange-600 bg-orange-50"
             }
@@ -220,83 +223,43 @@ export default function PatientRecordsPage() {
           })}
         </div>
 
-        {/* Search and Filters */}
+        {/* Generate Records from Appointments */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Add Medical Record</CardTitle>
-            <CardDescription>Quickly add a new medical record for testing or real use.</CardDescription>
+            <CardTitle>Generate Medical Records</CardTitle>
+            <CardDescription>Create medical records from your completed appointments.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2 mb-4">
-              <Button variant="medical" onClick={() => setShowForm(s => !s)}>{showForm ? 'Close Form' : 'Add Record'}</Button>
-              <Button onClick={async () => {
-                // autofill with dummy data and submit
-                const dummy = {
-                  title: 'Self-reported symptom: headache',
-                  recordType: 'CONSULTATION',
-                  recordDate: new Date().toISOString(),
-                  description: 'Patient reports intermittent headaches for 3 days.',
-                  attachments: []
-                }
-                if (!session?.user?.id) return;
-                try {
-                  const res = await fetch('/api/patient/records', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ patientId: session.user.id, ...dummy })
-                  })
-                  if (!res.ok) throw new Error('Failed to create record');
-                  const data = await res.json();
-                  setRecords(r => [data.record, ...r]);
-                } catch (e) {
-                  console.error(e);
-                }
-              }}>Fill & Save Dummy</Button>
+              <Button 
+                variant="medical" 
+                onClick={async () => {
+                  if (!session?.user?.id) return;
+                  try {
+                    const res = await fetch('/api/patient/generate-records', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId: session.user.id })
+                    });
+                    if (!res.ok) throw new Error('Failed to generate records');
+                    const data = await res.json();
+                    // Refresh records list
+                    const refreshRes = await fetch(`/api/patient/records?userId=${session.user.id}`);
+                    if (refreshRes.ok) {
+                      const refreshData = await refreshRes.json();
+                      setRecords(refreshData.records || []);
+                    }
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+              >
+                Generate from Appointments
+              </Button>
+              <p className="text-sm text-gray-600 flex items-center">
+                This will create medical records from your completed appointments with AI summaries and prescriptions.
+              </p>
             </div>
-            {showForm && (
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                if (!session?.user?.id) return;
-                try {
-                  const res = await fetch('/api/patient/records', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      patientId: session.user.id,
-                      title: formState.title,
-                      recordType: formState.recordType,
-                      recordDate: formState.recordDate,
-                      description: formState.description,
-                      attachments: formState.attachments ? [formState.attachments] : []
-                    })
-                  })
-                  if (!res.ok) throw new Error('Failed to create record');
-                  const data = await res.json();
-                  setRecords(r => [data.record, ...r]);
-                  setShowForm(false);
-                } catch (err) {
-                  console.error(err);
-                }
-              }}>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <Input placeholder="Title" value={formState.title} onChange={(e:any) => setFormState(s => ({...s, title: e.target.value}))} />
-                  <select className="p-2 border rounded" value={formState.recordType} onChange={(e:any) => setFormState(s => ({...s, recordType: e.target.value}))}>
-                    <option value="CHECKUP">CHECKUP</option>
-                    <option value="LAB_RESULT">LAB_RESULT</option>
-                    <option value="CONSULTATION">CONSULTATION</option>
-                    <option value="TREATMENT">TREATMENT</option>
-                    <option value="VACCINATION">VACCINATION</option>
-                  </select>
-                  <Input type="date" value={formState.recordDate} onChange={(e:any) => setFormState(s => ({...s, recordDate: e.target.value}))} autoComplete="off" />
-                </div>
-                <div className="mb-4">
-                  <textarea className="w-full p-2 border rounded" placeholder="Description" value={formState.description} onChange={(e:any) => setFormState(s => ({...s, description: e.target.value}))} />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit">Save Record</Button>
-                </div>
-              </form>
-            )}
           </CardContent>
         </Card>
         <Card className="mb-6">
@@ -321,7 +284,7 @@ export default function PatientRecordsPage() {
               <div className="flex gap-2 flex-wrap">
                 {[
                   { key: "all", label: "All" },
-                  { key: "checkup", label: "Checkups" },
+                  { key: "diagnosis", label: "Diagnoses" },
                   { key: "lab", label: "Lab Results" },
                   { key: "consultation", label: "Consultations" },
                   { key: "treatment", label: "Treatments" },
@@ -347,12 +310,12 @@ export default function PatientRecordsPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.1 }}
-                  className={`border rounded-lg p-6 hover:shadow-md transition-shadow ${getRecordColor(record.type)}`}
+                  className={`border rounded-lg p-6 hover:shadow-md transition-shadow ${getRecordColor(record.recordType)}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4 flex-1">
                       <div className="flex items-center justify-center w-12 h-12 bg-white rounded-lg border">
-                        {getRecordIcon(record.type)}
+                        {getRecordIcon(record.recordType)}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
@@ -360,20 +323,56 @@ export default function PatientRecordsPage() {
                             {record.title}
                           </h3>
                           <span className="px-2 py-1 text-xs font-medium bg-white rounded-full border">
-                            {record.type.replace('_', ' ')}
+                            {record.recordType.replace('_', ' ')}
                           </span>
+                          {record.recordData?.urgencyLevel && (
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              record.recordData.urgencyLevel === 'HIGH' ? 'bg-red-100 text-red-800' :
+                              record.recordData.urgencyLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-green-100 text-green-800'
+                            }`}>
+                              {record.recordData.urgencyLevel} PRIORITY
+                            </span>
+                          )}
                         </div>
                         
                         <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
                           <span className="flex items-center space-x-1">
                             <CalendarIcon className="w-4 h-4" />
-                            <span>{record.date}</span>
+                            <span>{new Date(record.recordDate).toLocaleDateString()}</span>
                           </span>
-                          <span className="flex items-center space-x-1">
-                            <UserIcon className="w-4 h-4" />
-                            <span>{record.doctorName}</span>
-                          </span>
+                          {record.recordData?.doctorName && (
+                            <span className="flex items-center space-x-1">
+                              <UserIcon className="w-4 h-4" />
+                              <span>{record.recordData.doctorName}</span>
+                            </span>
+                          )}
+                          {record.recordData?.specialization && (
+                            <span className="text-xs px-2 py-1 bg-gray-100 rounded-full">
+                              {Array.isArray(record.recordData.specialization) 
+                                ? record.recordData.specialization[0] 
+                                : record.recordData.specialization}
+                            </span>
+                          )}
                         </div>
+                        
+                        {/* Appointment Connection */}
+                        {record.recordData?.appointmentId && (
+                          <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center space-x-2 text-sm">
+                              <CalendarIcon className="w-4 h-4 text-blue-600" />
+                              <span className="text-blue-800 font-medium">Generated from Appointment</span>
+                              {record.recordData.referenceId && (
+                                <span className="text-blue-600">#{record.recordData.referenceId}</span>
+                              )}
+                            </div>
+                            {record.recordData.confidenceScore && (
+                              <div className="mt-1 text-xs text-blue-700">
+                                AI Confidence: {Math.round(record.recordData.confidenceScore * 100)}%
+                              </div>
+                            )}
+                          </div>
+                        )}
                         
                         <p className="text-sm text-gray-700 mb-4">
                           {record.description}
@@ -404,6 +403,18 @@ export default function PatientRecordsPage() {
                     </div>
                     
                     <div className="flex items-center space-x-2 ml-4">
+                      {record.recordData?.appointmentId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                        >
+                          <Link href={`/patient/appointments/${record.recordData.appointmentId}`}>
+                            <CalendarIcon className="w-4 h-4 mr-1" />
+                            View Appointment
+                          </Link>
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"

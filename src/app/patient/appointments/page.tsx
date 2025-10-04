@@ -45,70 +45,70 @@ export default function PatientAppointmentsPage() {
   // Redirect if not authenticated or not a patient
   useEffect(() => {
     if (status === "loading") return
+    // Require authentication for the appointments page in all environments.
     if (!session) {
       router.push("/auth/signin")
       return
     }
-    if (session.user.role !== "PATIENT") {
+    if (session.user && session.user.role !== "PATIENT") {
       router.push("/")
       return
     }
   }, [session, status, router])
 
-  // Mock data - in real app, fetch from API
+  // Load appointments from API and keep in sync using polling + focus refetch
   useEffect(() => {
-    const mockAppointments: Appointment[] = [
-      {
-        id: "1",
-        referenceId: "REF-ABC123",
-        doctorName: "Dr. Sarah Johnson",
-        specialization: "Cardiology",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "10:30",
-        status: "SCHEDULED",
-        chiefComplaint: "Chest pain and shortness of breath",
-        hasAiSummary: true,
-        hasPrescription: false
-      },
-      {
-        id: "2",
-        referenceId: "REF-DEF456", 
-        doctorName: "Dr. Michael Chen",
-        specialization: "General Practice",
-        scheduledDate: "2024-10-10",
-        scheduledTime: "14:00",
-        status: "COMPLETED",
-        chiefComplaint: "Annual checkup",
-        hasAiSummary: true,
-        hasPrescription: true
-      },
-      {
-        id: "3",
-        referenceId: "REF-GHI789",
-        doctorName: "Dr. Emily Rodriguez",
-        specialization: "Dermatology",
-        scheduledDate: "2024-09-28",
-        scheduledTime: "11:15",
-        status: "COMPLETED",
-        chiefComplaint: "Skin rash and irritation",
-        hasAiSummary: true,
-        hasPrescription: true
-      },
-      {
-        id: "4",
-        referenceId: "REF-JKL012",
-        doctorName: "Dr. Robert Wilson",
-        specialization: "Orthopedics",
-        scheduledDate: "2024-11-05",
-        scheduledTime: "09:00",
-        status: "SCHEDULED",
-        chiefComplaint: "Knee pain after exercise",
-        hasAiSummary: false,
-        hasPrescription: false
-      }
-    ]
+    let mounted = true
+    let interval: number | undefined
 
-    setAppointments(mockAppointments)
+    const mapAppointments = (appts: any[]): Appointment[] =>
+      appts.map((a: any) => ({
+        id: a.id,
+        referenceId: a.referenceId,
+        doctorName: a.doctor?.user?.name || 'Unknown',
+        specialization: (a.doctor?.specialization || [])[0] || 'General',
+        scheduledDate: a.scheduledDate?.split('T')[0] ?? new Date(a.scheduledDate).toISOString().split('T')[0],
+        scheduledTime: new Date(a.scheduledDate).toTimeString().slice(0,5) ?? '00:00',
+        status: a.status,
+        chiefComplaint: a.chiefComplaint || '',
+        hasAiSummary: Boolean(a.aiSummary),
+        hasPrescription: Boolean(a.prescription),
+      }))
+
+    const loadAppointments = async () => {
+      try {
+        const res = await fetch(`/api/patient/appointments`, { credentials: 'include' })
+        if (!res.ok) {
+          console.warn('Failed to load appointments:', res.status)
+          if (mounted) setAppointments([])
+          return
+        }
+
+        const json = await res.json()
+        const appts = json.appointments || []
+        const mapped = mapAppointments(appts)
+        if (mounted) setAppointments(mapped)
+      } catch (e) {
+        console.error('Error fetching appointments:', e)
+        if (mounted) setAppointments([])
+      }
+    }
+
+    // Initial load
+    loadAppointments()
+
+    // Poll every 15 seconds to pick up status changes
+    interval = window.setInterval(loadAppointments, 15000)
+
+    // Refetch on window focus for near-real-time updates
+    const onFocus = () => loadAppointments()
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      mounted = false
+      if (interval) clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [])
 
   const filteredAppointments = appointments.filter(appointment => {

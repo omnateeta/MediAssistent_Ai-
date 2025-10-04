@@ -210,6 +210,8 @@ export default function BookAppointmentPage() {
       const res = await fetch('/api/patient/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // include credentials (cookies) so server-side session is available to the API
+        credentials: 'include',
         body: JSON.stringify({
           specialization: formData.specialization,
           doctorId: formData.doctorId,
@@ -227,39 +229,6 @@ export default function BookAppointmentPage() {
       if (!res.ok) {
         // If user is not authenticated, redirect to sign-in
         if (res.status === 401) {
-          // In development, automatically retry using the dev-only fallback so you can test without auth
-          if (process.env.NODE_ENV !== 'production') {
-            try {
-              const devEmail = 'patient.demo@demo.local'
-              const retry = await fetch(`/api/patient/appointments?devUserEmail=${encodeURIComponent(devEmail)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  specialization: formData.specialization,
-                  doctorId: formData.doctorId,
-                  appointmentDate: formData.appointmentDate,
-                  appointmentTime: formData.appointmentTime,
-                  chiefComplaint: formData.chiefComplaint,
-                  symptoms: formData.symptoms,
-                  symptomDuration: formData.symptomDuration,
-                  painLevel: formData.painLevel,
-                  allergies: formData.allergies,
-                  currentMedications: formData.currentMedications,
-                })
-              })
-
-              if (retry.ok) {
-                const data = await retry.json()
-                const appointmentId = data?.appointment?.id
-                router.push(`/patient/appointment-confirmation?ref=${appointmentId || 'REF-' + Date.now().toString(36).toUpperCase()}`)
-                return
-              }
-            } catch (e) {
-              console.error('Dev fallback appointment create failed', e)
-            }
-          }
-
-          // redirect to sign-in and return back to this booking page after auth
           const cb = encodeURIComponent(pathname || '/patient/book')
           router.push(`/auth/signin?callbackUrl=${cb}&from=booking`)
           return

@@ -1,6 +1,7 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
+import React from 'react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,24 +20,40 @@ export default function AppointmentConfirmationPage() {
   const searchParams = useSearchParams()
   const referenceId = searchParams.get("ref")
 
-  // Mock appointment data - in real app, fetch from API using reference ID
-  const appointmentData = {
-    referenceId: referenceId || "REF-ABC123",
-    doctorName: "Dr. Sarah Johnson",
-    specialization: "Cardiology",
-    date: "2024-10-15",
-    time: "10:30 AM",
-    consultationFee: 150,
-    status: "CONFIRMED",
-    estimatedDuration: "30 minutes",
-    location: "MediAssist Clinic - Room 205",
-    instructions: [
-      "Please arrive 15 minutes before your appointment time",
-      "Bring a valid ID and insurance card",
-      "Fast for 8 hours if blood tests are required",
-      "Bring any current medications you are taking"
-    ]
-  }
+  const [appointmentData, setAppointmentData] = React.useState<any | null>(null)
+  const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!referenceId) return
+
+    const load = async () => {
+      setLoading(true)
+      try {
+  const res = await fetch(`/api/patient/appointments/${encodeURIComponent(referenceId)}`, { credentials: 'include' })
+        if (res.status === 401) {
+          // require auth - redirect to signin with callback
+          window.location.href = `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`
+          return
+        }
+
+        if (!res.ok) {
+          console.warn('Failed to load appointment:', res.status)
+          setAppointmentData(null)
+          return
+        }
+
+        const json = await res.json()
+        setAppointmentData(json.appointment)
+      } catch (e) {
+        console.error('Error loading appointment:', e)
+        setAppointmentData(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [referenceId])
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -61,6 +78,29 @@ export default function AppointmentConfirmationPage() {
   const handlePrint = () => {
     window.print()
   }
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
+  }
+
+  if (!appointmentData) {
+    return (
+      <div className="min-h-screen py-8">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-xl font-semibold">Appointment not found</h2>
+          <p className="text-gray-600 mt-2">We couldn't find the appointment. Please check your reference or sign in.</p>
+          <div className="mt-4">
+            <Button asChild>
+              <Link href="/patient/appointments">View My Appointments</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // safe access helpers
+  const appt = appointmentData
 
   return (
     <div className="min-h-screen py-8">
@@ -156,9 +196,9 @@ export default function AppointmentConfirmationPage() {
                 Important Instructions
               </CardTitle>
             </CardHeader>
-            <CardContent>
+              <CardContent>
               <ul className="space-y-2">
-                {appointmentData.instructions.map((instruction, index) => (
+                {(appointmentData?.instructions || []).map((instruction: string, index: number) => (
                   <li key={index} className="flex items-start space-x-2">
                     <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0" />
                     <span className="text-gray-700">{instruction}</span>

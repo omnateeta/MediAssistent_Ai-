@@ -8,11 +8,8 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions as any)
     const s = session as any
 
-    // Dev-only fallback: allow specifying a dev user email via header or query param
-    const url = new URL(req.url)
-    const devUserEmail = url.searchParams.get('devUserEmail') || (req.headers && (req.headers as any)['x-dev-user'])
-
-    if ((!s || !s.user) && process.env.NODE_ENV === 'production' && !devUserEmail) {
+    // Require an authenticated session for creating appointments
+    if (!s || !s.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -32,32 +29,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Ensure patient profile exists for the user (or dev user)
-    let userIdToUse: string | undefined = undefined
-    if (s && s.user) userIdToUse = s.user.id
-    if (!userIdToUse && devUserEmail) {
-      // find or create demo user by email
-      const devUser = await prisma.user.findUnique({ where: { email: devUserEmail } })
-      if (devUser) {
-        userIdToUse = devUser.id
-      } else {
-        const created = await prisma.user.create({
-          data: {
-            email: devUserEmail,
-            name: devUserEmail.split('@')[0],
-            role: 'PATIENT',
-            isActive: true,
-            patientProfile: { create: {} },
-          },
-          include: { patientProfile: true },
-        })
-        userIdToUse = created.id
-      }
-    }
-
-    if (!userIdToUse) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Use authenticated session's user id and ensure patient profile exists
+    const userIdToUse = s.user.id as string
 
     let patientProfile = await prisma.patientProfile.findUnique({ where: { userId: userIdToUse } })
     if (!patientProfile) {
@@ -89,27 +62,23 @@ export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions as any)
     const s = session as any
-
-    const url = new URL(req.url)
-    const devUserEmail = url.searchParams.get('devUserEmail')
-
-    let userIdToUse: string | undefined = undefined
-    if (s && s.user) userIdToUse = s.user.id
-    if (!userIdToUse && devUserEmail) {
-      const devUser = await prisma.user.findUnique({ where: { email: devUserEmail } })
-      if (devUser) userIdToUse = devUser.id
-    }
-
-    if (!userIdToUse) {
+    // Require an authenticated session for listing appointments
+    if (!s || !s.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const userIdToUse = s.user.id as string
 
     const patientProfile = await prisma.patientProfile.findUnique({ where: { userId: userIdToUse } })
     if (!patientProfile) return NextResponse.json({ appointments: [] })
 
     const appointments = await prisma.appointment.findMany({
       where: { patientId: patientProfile.id },
-      include: { doctor: { include: { user: true } } },
+      include: {
+        doctor: { include: { user: true } },
+        aiSummary: true,
+        prescription: true,
+      },
       orderBy: { scheduledDate: 'desc' }
     })
 

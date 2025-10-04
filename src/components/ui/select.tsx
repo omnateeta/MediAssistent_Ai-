@@ -17,6 +17,7 @@ const SelectTrigger = React.forwardRef<
     label?: string
     error?: string
     helperText?: string
+    required?: boolean
   }
 >(({ className, children, label, error, helperText, ...props }, ref) => {
   const triggerId = React.useId()

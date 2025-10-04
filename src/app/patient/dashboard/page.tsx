@@ -1,8 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import useAuthGuard from '@/hooks/useAuthGuard'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,25 +39,10 @@ interface RecentActivity {
 }
 
 export default function PatientDashboardPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
+  const { session, status, checked } = useAuthGuard('PATIENT')
   
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([])
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
-
-  // Redirect if not authenticated or not a patient
-  useEffect(() => {
-    if (status === "loading") return
-    if (!session) {
-      router.push("/auth/signin")
-      return
-    }
-    if (session.user.role !== "PATIENT") {
-      router.push("/")
-      return
-    }
-  }, [session, status, router])
-
   // Mock data - in real app, fetch from API
   useEffect(() => {
     const mockUpcoming: UpcomingAppointment[] = [
@@ -113,6 +97,8 @@ export default function PatientDashboardPage() {
     setRecentActivity(mockActivity)
   }, [])
 
+  // Wait for auth guard to finish checking
+  if (!checked) return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   const stats = {
     totalAppointments: 8,
     upcomingAppointments: upcomingAppointments.length,

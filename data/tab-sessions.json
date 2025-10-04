@@ -1,0 +1,36 @@
+{
+  "sessions": [
+    {
+      "token": "df421568-7767-4921-8e50-43ef016150e9",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T10:02:25.882Z",
+      "expiresAt": "2025-10-05T10:02:25.882Z"
+    },
+    {
+      "token": "a7a3f5f7-3f35-44b8-8678-89dcf59fbaef",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T09:58:23.534Z",
+      "expiresAt": "2025-10-05T09:58:23.534Z"
+    },
+    {
+      "token": "3a088899-7ed8-491d-9e67-f250b83bb892",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T09:54:25.264Z",
+      "expiresAt": "2025-10-05T09:54:25.264Z"
+    },
+    {
+      "token": "84adbc1e-4da3-4eb0-8634-82671a1a6ad9",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T09:48:41.871Z",
+      "expiresAt": "2025-10-05T09:48:41.871Z"
+    }
+  ]
+}

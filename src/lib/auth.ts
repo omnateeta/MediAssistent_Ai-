@@ -76,6 +76,12 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
+          // If the client requested a specific role, enforce it here
+          if (credentials.role && user.role && credentials.role !== user.role) {
+            console.warn(`[NextAuth][Credentials] authorize() role mismatch requested=${credentials.role} stored=${user.role} for email=${credentials.email}`)
+            throw new Error(`Role mismatch: this account is registered as ${user.role}`)
+          }
+
           if (!user.isActive) {
             console.warn(`[NextAuth][Credentials] authorize() account deactivated userId=${user.id}`)
             throw new Error('Account is deactivated')

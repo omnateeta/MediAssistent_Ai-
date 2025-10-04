@@ -61,11 +61,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    })
+    const existingUser = await prisma.user.findUnique({ where: { email } })
 
     if (existingUser) {
+      // If an account exists with a different role, return a specific role-mismatch error
+      if (existingUser.role && existingUser.role !== role) {
+        return NextResponse.json(
+          {
+            message: `This email is already registered as ${existingUser.role}. Please sign in as that role or use a different email.`,
+            conflict: 'role_mismatch',
+            existingRole: existingUser.role,
+          },
+          { status: 409 }
+        )
+      }
+
+      // Same role -> generic duplicate
       return NextResponse.json(
         { message: "User with this email already exists" },
         { status: 409 }

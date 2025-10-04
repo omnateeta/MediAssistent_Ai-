@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -45,6 +45,14 @@ export default function SignUpPage() {
     setIsLoading(true)
     setError("")
 
+    // Ensure a role was selected and is valid
+    if (!selectedRole || (selectedRole !== 'PATIENT' && selectedRole !== 'DOCTOR')) {
+      const msg = 'Invalid role selected. Please choose Patient or Doctor.'
+      setError(msg)
+      try { window.alert(msg) } catch {};
+      setIsLoading(false)
+      return
+    }
     // Validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
@@ -73,26 +81,59 @@ export default function SignUpPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || "Registration failed")
+        // If server indicates a role mismatch, show a popup and inline error specifically
+        if (data?.conflict === 'role_mismatch') {
+          const msg = data.message || 'This email is already registered with a different role.'
+          setError(msg)
+          try { window.alert(msg) } catch {}
+          setIsLoading(false)
+          return
+        }
+
+        // Generic failure
+        const msg = data?.message || 'Registration failed'
+        setError(msg)
+        try { window.alert(msg) } catch {}
+        setIsLoading(false)
+        return
       }
 
-      // Auto sign in after successful registration
+      // Auto sign in after successful registration - pass role so Credentials provider enforces it
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
+        role: selectedRole ?? undefined,
         redirect: false,
       })
 
+      // If signIn returned an error, show it and stop
       if (result?.error) {
         setError(`Sign-in failed: ${result.error}. Please try signing in manually with your new account.`)
-      } else {
-        // Successful sign-in after registration
-        if (selectedRole === 'DOCTOR') {
-          router.push('/doctor/dashboard')
-        } else {
-          router.push('/patient/dashboard')
-        }
+        setIsLoading(false)
+        return
       }
+
+      // Verify the session is active (some dev setups require NEXTAUTH_URL/NEXTAUTH_SECRET)
+      try {
+        const session = await getSession()
+        if (session && session.user && session.user.role === selectedRole) {
+          // session active and role matches
+          if (selectedRole === 'DOCTOR') router.push('/doctor/dashboard')
+          else router.push('/patient/dashboard')
+          setIsLoading(false)
+          return
+        }
+      } catch (e) {
+        console.warn('getSession() failed after signup signIn:', e)
+      }
+
+      // If we reach here, auto sign-in didn't produce an active session. Send the user to sign-in with helpful context.
+      const cbPath = selectedRole === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'
+      const cb = encodeURIComponent(cbPath)
+      try { window.alert('Registration complete — please sign in to continue. If you are testing locally, ensure NEXTAUTH_URL and NEXTAUTH_SECRET are set.') } catch {}
+      router.push(`/auth/signin?callbackUrl=${cb}&expectedRole=${encodeURIComponent(selectedRole ?? '')}`)
+      setIsLoading(false)
+      return
     } catch (error: any) {
       setError(error.message || "An unexpected error occurred")
     } finally {

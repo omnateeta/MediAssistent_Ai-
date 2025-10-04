@@ -51,7 +51,15 @@ export default function PatientAppointmentsPage() {
       return
     }
     if (session.user && session.user.role !== "PATIENT") {
-      router.push("/")
+      // Redirect to sign-in with context about expected role instead of sending to home
+      try {
+        const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
+        const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
+        const expected = `&expectedRole=PATIENT`
+        router.push(`/auth/signin${cb}${expected}`)
+      } catch (e) {
+        router.push('/auth/signin')
+      }
       return
     }
   }, [session, status, router])

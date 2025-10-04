@@ -1,6 +1,86 @@
 {
   "sessions": [
     {
+      "token": "62e238af-00ab-4b72-8492-1f0ab4e081ca",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T13:40:13.279Z",
+      "expiresAt": "2025-10-05T13:40:13.279Z"
+    },
+    {
+      "token": "d1eb3f8e-2e91-4b6c-b817-a228127c3644",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T13:35:27.404Z",
+      "expiresAt": "2025-10-05T13:35:27.404Z"
+    },
+    {
+      "token": "143548b9-ec64-49fe-8335-0b7f1ffd78b4",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T13:29:40.753Z",
+      "expiresAt": "2025-10-05T13:29:40.753Z"
+    },
+    {
+      "token": "301ae1e4-c508-4149-98a2-1590ae829c16",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T13:21:45.073Z",
+      "expiresAt": "2025-10-05T13:21:45.073Z"
+    },
+    {
+      "token": "7a793458-4c2a-4eba-9f6d-d8bfcfd05f34",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T13:13:37.616Z",
+      "expiresAt": "2025-10-05T13:13:37.616Z"
+    },
+    {
+      "token": "f1ed1093-a814-4a3d-b51d-9d40d50bc9e1",
+      "userId": "cmgbw56ua0008vbw8pb3wyk5e",
+      "email": "doctest@gmail.com",
+      "role": "DOCTOR",
+      "createdAt": "2025-10-04T13:05:48.433Z",
+      "expiresAt": "2025-10-05T13:05:48.433Z"
+    },
+    {
+      "token": "6cacffe9-c4cd-4013-a245-336550fc703d",
+      "userId": "cmgbw56ua0008vbw8pb3wyk5e",
+      "email": "doctest@gmail.com",
+      "role": "DOCTOR",
+      "createdAt": "2025-10-04T13:05:28.194Z",
+      "expiresAt": "2025-10-05T13:05:28.194Z"
+    },
+    {
+      "token": "dcd8b695-92a8-42be-9d72-8b9a3c3f094e",
+      "userId": "cmgbw56ua0008vbw8pb3wyk5e",
+      "email": "doctest@gmail.com",
+      "role": "DOCTOR",
+      "createdAt": "2025-10-04T12:55:08.174Z",
+      "expiresAt": "2025-10-05T12:55:08.174Z"
+    },
+    {
+      "token": "ea88e53e-0272-4d83-ac0b-41173b5282f0",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T12:05:17.304Z",
+      "expiresAt": "2025-10-05T12:05:17.304Z"
+    },
+    {
+      "token": "0f2c72ce-344c-46e3-9f22-3e28d6c4db37",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T12:00:15.030Z",
+      "expiresAt": "2025-10-05T12:00:15.030Z"
+    },
+    {
       "token": "28e283bc-e4c3-450b-9d8b-ee3d45358b77",
       "userId": "cmgbw56ua0008vbw8pb3wyk5e",
       "email": "doctest@gmail.com",

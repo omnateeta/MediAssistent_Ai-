@@ -107,7 +107,7 @@ export default function HomePage() {
                     ) : (
                       <>
                         <Button size="xl" variant="medical" asChild>
-                          <Link href="/auth/signup">Get Started Free</Link>
+                          <Link href="/auth/signin?callbackUrl=%2Fpatient%2Fdashboard">Get Started Free</Link>
                         </Button>
                         <Button size="xl" variant="outline" asChild>
                           <Link href="/demo">Watch Demo</Link>

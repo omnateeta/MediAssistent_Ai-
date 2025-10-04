@@ -105,7 +105,7 @@ export function Header({ className }: HeaderProps) {
                   <Link href="/auth/signin">Sign In</Link>
                 </Button>
                 <Button variant="medical" size="sm" asChild>
-                  <Link href="/auth/signup">Get Started</Link>
+                  <Link href="/auth/signin?callbackUrl=%2Fpatient%2Fdashboard">Get Started</Link>
                 </Button>
               </div>
             )}

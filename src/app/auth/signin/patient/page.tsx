@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,18 +28,37 @@ export default function PatientSignInPage() {
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
+        role: 'PATIENT',
         redirect: false,
       })
 
       if ((result as any)?.error) {
         setError((result as any).error)
       } else {
-        // also create a per-tab token (best-effort)
-                // create tab token in background (do not block navigation)
-                fetch('/api/tab-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: formData.email, password: formData.password }) })
-                  .then(r => r.json().catch(() => null))
-                  .then(j => { if (j?.token) { try { sessionStorage.setItem('tab_token', j.token) } catch {} } })
-                  .catch(() => {})
+        // create tab token and await it so the auth fallback sees it after redirect
+        try {
+          const r = await fetch('/api/tab-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: formData.email, password: formData.password }) })
+          const j = await r.json().catch(() => null)
+          if (j?.token) { try { sessionStorage.setItem('tab_token', j.token) } catch {} }
+        } catch {}
+
+        // Wait briefly for next-auth session to become available (poll)
+        const waitForSession = async (timeout = 3000) => {
+          const start = Date.now()
+          while (Date.now() - start < timeout) {
+            const s = await getSession()
+            if (s && s.user && s.user.role === 'PATIENT') return true
+            await new Promise(res => setTimeout(res, 200))
+          }
+          return false
+        }
+
+        const ok = await waitForSession(3000)
+        if (!ok) {
+          // if session not active yet, send user to sign-in with context
+          router.push(`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}&expectedRole=PATIENT`)
+          return
+        }
 
         router.push(callbackUrl)
       }
@@ -74,7 +93,7 @@ export default function PatientSignInPage() {
               setIsLoading(true)
               setError("")
               try {
-                const result = await signIn("credentials", { email, password, redirect: false })
+                const result = await signIn("credentials", { email, password, role: 'PATIENT', redirect: false })
                 if ((result as any)?.error) {
                   setError((result as any).error)
                 } else {

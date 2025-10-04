@@ -69,7 +69,14 @@ export default function BookAppointmentPage() {
       return
     }
     if (session.user.role !== "PATIENT") {
-      router.push("/")
+      try {
+        const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
+        const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
+        const expected = `&expectedRole=PATIENT`
+        router.push(`/auth/signin${cb}${expected}`)
+      } catch (e) {
+        router.push('/auth/signin')
+      }
       return
     }
   }, [session, status, router])

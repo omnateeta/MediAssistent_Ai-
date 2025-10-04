@@ -17,7 +17,16 @@ export default function useAuthGuard(requiredRole?: string) {
       // If we have a valid next-auth session, ensure role matches
       if (session) {
         if (requiredRole && session.user.role !== requiredRole) {
-          router.push('/')
+          // Redirect to sign-in with context about the expected role so the user sees correct guidance
+          try {
+            const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
+            const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
+            const expected = `&expectedRole=${encodeURIComponent(requiredRole)}`
+            router.push(`/auth/signin${cb}${expected}`)
+          } catch (e) {
+            router.push('/auth/signin')
+          }
+          return
         }
         if (mounted) setChecked(true)
         return
@@ -45,8 +54,14 @@ export default function useAuthGuard(requiredRole?: string) {
         // ignore and fallthrough to redirect
       }
 
-      // No valid session found -> redirect to sign-in
-      router.push('/auth/signin')
+      // No valid session found -> redirect to sign-in and preserve return path
+      try {
+        const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
+        const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
+        router.push(`/auth/signin${cb}`)
+      } catch (e) {
+        router.push('/auth/signin')
+      }
     }
 
     check()

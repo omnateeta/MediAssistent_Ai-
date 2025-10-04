@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,6 +28,7 @@ export default function DoctorSignInPage() {
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
+        role: 'DOCTOR',
         redirect: false,
       })
 
@@ -66,7 +67,7 @@ export default function DoctorSignInPage() {
               setIsLoading(true)
               setError("")
               try {
-                const result = await signIn("credentials", { email, password, redirect: false })
+                const result = await signIn("credentials", { email, password, role: 'DOCTOR', redirect: false })
                 if ((result as any)?.error) {
                   setError((result as any).error)
                 } else {
@@ -75,6 +76,22 @@ export default function DoctorSignInPage() {
                     .then(r => r.json().catch(() => null))
                     .then(j => { if (j?.token) { try { sessionStorage.setItem('tab_token', j.token) } catch {} } })
                     .catch(() => {})
+
+                  const waitForSession = async (timeout = 3000) => {
+                    const start = Date.now()
+                    while (Date.now() - start < timeout) {
+                      const s = await getSession()
+                      if (s && s.user && s.user.role === 'DOCTOR') return true
+                      await new Promise(res => setTimeout(res, 200))
+                    }
+                    return false
+                  }
+
+                  const ok = await waitForSession(3000)
+                  if (!ok) {
+                    router.push(`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}&expectedRole=DOCTOR`)
+                    return
+                  }
 
                   router.push(callbackUrl)
                 }

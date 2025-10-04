@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { signIn, getSession } from "next-auth/react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useSearchParams } from 'next/navigation'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,61 +12,10 @@ import { HeartIcon, EyeIcon, EyeSlashIcon, UserIcon, UserGroupIcon } from "@hero
 import { motion } from "framer-motion"
 
 export default function SignInPage() {
-<<<<<<<<< Temporary merge branch 1
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || "/"
-  
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  }) 
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
-
-    try {
-      const result = await signIn("credentials", {
-        email: formData.email,
-        password: formData.password,
-        redirect: false,
-      })
-
-      if (result?.error) {
-        setError(result.error)
-      } else {
-        // Get the updated session to check user role
-        const session = await getSession()
-        if (session?.user.role === 'DOCTOR') {
-          router.push('/doctor/dashboard')
-        } else {
-          router.push('/patient/dashboard')
-        }
-      }
-    } catch (error) {
-      setError("An unexpected error occurred")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true)
-    try {
-      await signIn("google", { callbackUrl })
-    } catch (error) {
-      setError("Failed to sign in with Google")
-      setIsLoading(false)
-    }
-  }
-=========
+  const expectedRole = searchParams.get('expectedRole')
+  const callbackUrl = searchParams.get('callbackUrl') || undefined
   const [selectedRole, setSelectedRole] = useState<"PATIENT" | "DOCTOR" | null>(null)
->>>>>>>>> Temporary merge branch 2
 
   return (
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -83,23 +33,15 @@ export default function SignInPage() {
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">Sign in</h2>
           <p className="mt-2 text-sm text-gray-600">Choose your role to sign in</p>
+          {expectedRole && (
+            <div className="mt-3 text-sm bg-yellow-50 border border-yellow-100 text-yellow-800 px-3 py-2 rounded">
+              This page requires a <strong>{expectedRole}</strong> account. Please sign in with a {expectedRole.toLowerCase()} account or choose the correct role below.
+            </div>
+          )}
         </div>
 
-<<<<<<<<< Temporary merge branch 1
-        <Card>
-          <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>
-              Enter your credentials to access your account
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
-                {error}
-=========
         <div className="grid grid-cols-1 gap-4">
-          <Link href="/auth/signin/patient">
+          <Link href={`/auth/signin/patient${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}${expectedRole ? `&expectedRole=${encodeURIComponent(expectedRole)}` : ''}` : ''}`}>
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full p-6 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left">
               <div className="flex items-center space-x-4">
                 <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
@@ -109,12 +51,10 @@ export default function SignInPage() {
                   <h3 className="text-lg font-semibold text-gray-900">I'm a Patient</h3>
                   <p className="text-sm text-gray-600">Book appointments and manage your records</p>
                 </div>
->>>>>>>>> Temporary merge branch 2
               </div>
             </motion.div>
           </Link>
-
-          <Link href="/auth/signin/doctor">
+          <Link href={`/auth/signin/doctor${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}${expectedRole ? `&expectedRole=${encodeURIComponent(expectedRole)}` : ''}` : ''}`}>
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left">
               <div className="flex items-center space-x-4">
                 <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">

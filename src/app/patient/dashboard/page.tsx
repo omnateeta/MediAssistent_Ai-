@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import useAuthGuard from '@/hooks/useAuthGuard'
 import Link from "next/link"
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
@@ -43,58 +44,119 @@ export default function PatientDashboardPage() {
   
   const [upcomingAppointments, setUpcomingAppointments] = useState<UpcomingAppointment[]>([])
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
-  // Mock data - in real app, fetch from API
+  const router = useRouter()
+
+  // Fetch live appointments and derive recent activity
   useEffect(() => {
-    const mockUpcoming: UpcomingAppointment[] = [
-      {
-        id: "1",
-        referenceId: "REF-ABC123",
-        doctorName: "Dr. Sarah Johnson",
-        specialization: "Cardiology",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "10:30",
-        status: "CONFIRMED"
-      },
-      {
-        id: "2",
-        referenceId: "REF-JKL012",
-        doctorName: "Dr. Robert Wilson",
-        specialization: "Orthopedics",
-        scheduledDate: "2024-11-05",
-        scheduledTime: "09:00",
-        status: "SCHEDULED"
-      }
-    ]
+    let mounted = true
+  let pollInterval: number | null = null
 
-    const mockActivity: RecentActivity[] = [
-      {
-        id: "1",
-        type: "prescription",
-        title: "Prescription Ready",
-        description: "Your prescription from Dr. Michael Chen is ready for pickup",
-        date: "2024-10-10",
-        status: "ready"
-      },
-      {
-        id: "2",
-        type: "appointment",
-        title: "Appointment Confirmed",
-        description: "Your appointment with Dr. Sarah Johnson has been confirmed",
-        date: "2024-10-08",
-        status: "confirmed"
-      },
-      {
-        id: "3",
-        type: "ai_summary",
-        title: "AI Analysis Complete",
-        description: "Your symptoms have been analyzed and summary is ready for doctor review",
-        date: "2024-10-07",
-        status: "completed"
-      }
-    ]
+    const fetchData = async () => {
+      try {
+        const res = await fetch('/api/patient/appointments', { credentials: 'include' })
+        if (res.status === 401) {
+          // Not authenticated - send to sign in with callback so user returns here after login
+          const cb = encodeURIComponent(window.location.pathname + window.location.search)
+          router.push(`/auth/signin?callbackUrl=${cb}`)
+          return
+        }
+        const data = await res.json()
+        const appointments = data?.appointments ?? []
 
-    setUpcomingAppointments(mockUpcoming)
-    setRecentActivity(mockActivity)
+        // Map appointments to UpcomingAppointment shape
+        const mapped: UpcomingAppointment[] = appointments.map((a: any) => {
+          const scheduled = a.scheduledDate ? new Date(a.scheduledDate) : null
+          const scheduledDate = scheduled ? scheduled.toISOString().split('T')[0] : ''
+          const scheduledTime = scheduled ? scheduled.toISOString().split('T')[1].slice(0,5) : ''
+          const doctorName = a.doctor?.user?.name ?? a.doctor?.name ?? 'Unknown'
+          const specialization = a.doctor?.specialization ?? 'General'
+          return {
+            id: a.id,
+            referenceId: a.referenceId ?? `APPT-${String(a.id).slice(0,8)}`,
+            doctorName,
+            specialization,
+            scheduledDate,
+            scheduledTime,
+            status: a.status ?? 'SCHEDULED'
+          }
+        })
+
+        // Derive recent activity from appointments, aiSummary and prescription
+        const activities: RecentActivity[] = []
+        appointments.forEach((a: any) => {
+          const scheduled = a.scheduledDate ? new Date(a.scheduledDate) : new Date()
+          const dateStr = scheduled.toISOString().split('T')[0]
+          // appointment activity
+          activities.push({
+            id: `appt_${a.id}`,
+            type: 'appointment',
+            title: `Appointment ${a.status ?? 'Scheduled'}`,
+            description: `With ${a.doctor?.user?.name ?? 'your doctor'} on ${dateStr}`,
+            date: dateStr,
+            status: (a.status ?? '').toLowerCase()
+          })
+
+          // ai summary (if present)
+          if (a.aiSummary) {
+            // aiSummary might be array or object
+            const summaries = Array.isArray(a.aiSummary) ? a.aiSummary : [a.aiSummary]
+            summaries.forEach((s: any, idx: number) => {
+              activities.push({
+                id: `ai_${a.id}_${idx}`,
+                type: 'ai_summary',
+                title: `AI Analysis Ready`,
+                description: s.summaryText ?? 'AI analysis available',
+                date: s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : dateStr,
+                status: 'completed'
+              })
+            })
+          }
+
+          // prescription (if present)
+          if (a.prescription) {
+            const pres = a.prescription
+            const presList = Array.isArray(pres) ? pres : [pres]
+            presList.forEach((p: any, i: number) => {
+              const presDate = p.issuedDate ? new Date(p.issuedDate).toISOString().split('T')[0] : dateStr
+              activities.push({
+                id: `pres_${a.id}_${i}`,
+                type: 'prescription',
+                title: `Prescription ${p.status ?? 'Issued'}`,
+                description: `Prescription from ${a.doctor?.user?.name ?? 'doctor'}`,
+                date: presDate,
+                status: (p.status ?? '').toLowerCase()
+              })
+            })
+          }
+        })
+
+        // Sort activities by date desc
+        activities.sort((x, y) => (y.date || '').localeCompare(x.date || ''))
+
+        if (mounted) {
+          setUpcomingAppointments(mapped)
+          setRecentActivity(activities)
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data', err)
+      }
+    }
+
+    // Only fetch when auth guard has checked and session exists
+    fetchData()
+    // Poll every 30s
+  pollInterval = window.setInterval(fetchData, 30_000)
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchData()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      mounted = false
+    if (pollInterval !== null) clearInterval(pollInterval)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [])
 
   // Wait for auth guard to finish checking

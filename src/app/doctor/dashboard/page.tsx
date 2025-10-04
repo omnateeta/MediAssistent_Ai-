@@ -39,6 +39,9 @@ interface DashboardStats {
   completedToday: number
 }
 
+
+
+
 export default function DoctorDashboardPage() {
   const { session, status, checked } = useAuthGuard('DOCTOR')
   

@@ -32,10 +32,14 @@ interface Prescription {
     name: string
     dosage: string
     frequency: string
-    duration: string
+    instructions?: string
   }[]
-  instructions: string
+  instructions?: string
+  duration?: string
   appointmentDate: string
+  canDownload?: boolean
+  canShare?: boolean
+  canPrint?: boolean
 }
 
 export default function PatientPrescriptionsPage() {
@@ -66,73 +70,42 @@ export default function PatientPrescriptionsPage() {
     }
   }, [session, status, router])
 
-  // Mock data - in real app, fetch from API
+  // Fetch prescriptions from API
   useEffect(() => {
-    const mockPrescriptions: Prescription[] = [
-      {
-        id: "1",
-        referenceId: "REF-DEF456",
-        doctorName: "Dr. Michael Chen",
-        specialization: "General Practice",
-        issuedDate: "2024-10-10",
-        status: "ACTIVE",
-        appointmentDate: "2024-10-10",
-        medications: [
-          {
-            name: "Lisinopril",
-            dosage: "10mg",
-            frequency: "Once daily",
-            duration: "30 days"
-          },
-          {
-            name: "Metformin",
-            dosage: "500mg",
-            frequency: "Twice daily with meals",
-            duration: "30 days"
+    const fetchPrescriptions = async () => {
+      if (!session?.user?.id) return
+      
+      try {
+        const res = await fetch('/api/patient/prescriptions', {
+          credentials: 'include'
+        })
+        
+        if (!res.ok) {
+          if (res.status === 401) {
+            // Redirect to sign in
+            const cb = encodeURIComponent(window.location.pathname + window.location.search)
+            router.push(`/auth/signin/patient?callbackUrl=${cb}`)
+            return
           }
-        ],
-        instructions: "Take medications as prescribed. Monitor blood pressure daily. Follow up in 4 weeks."
-      },
-      {
-        id: "2",
-        referenceId: "REF-GHI789",
-        doctorName: "Dr. Emily Rodriguez",
-        specialization: "Dermatology",
-        issuedDate: "2024-09-28",
-        status: "COMPLETED",
-        appointmentDate: "2024-09-28",
-        medications: [
-          {
-            name: "Hydrocortisone Cream",
-            dosage: "1%",
-            frequency: "Apply twice daily",
-            duration: "14 days"
-          }
-        ],
-        instructions: "Apply cream to affected areas only. Avoid contact with eyes. Discontinue if irritation worsens."
-      },
-      {
-        id: "3",
-        referenceId: "REF-MNO345",
-        doctorName: "Dr. Sarah Johnson",
-        specialization: "Cardiology",
-        issuedDate: "2024-08-15",
-        status: "EXPIRED",
-        appointmentDate: "2024-08-15",
-        medications: [
-          {
-            name: "Atorvastatin",
-            dosage: "20mg",
-            frequency: "Once daily at bedtime",
-            duration: "90 days"
-          }
-        ],
-        instructions: "Take with or without food. Avoid grapefruit juice. Regular liver function tests required."
+          throw new Error(`Failed to fetch prescriptions: ${res.status}`)
+        }
+        
+        const data = await res.json()
+        
+        if (data.success) {
+          setPrescriptions(data.prescriptions || [])
+        } else {
+          throw new Error('Invalid response format')
+        }
+      } catch (error) {
+        console.error('Error fetching prescriptions:', error)
+        // Could show an error message to user
+        setPrescriptions([])
       }
-    ]
+    }
 
-    setPrescriptions(mockPrescriptions)
-  }, [])
+    fetchPrescriptions()
+  }, [session, router])
 
   const filteredPrescriptions = prescriptions.filter(prescription => {
     const matchesSearch = 
@@ -178,21 +151,39 @@ export default function PatientPrescriptionsPage() {
   }
 
   const handleDownload = (prescriptionId: string) => {
-    // Mock download functionality
-    console.log(`Downloading prescription ${prescriptionId}`)
-    alert("Download functionality would be implemented here")
+    // Implement real download functionality
+    const prescription = prescriptions.find(p => p.id === prescriptionId)
+    if (prescription?.canDownload) {
+      // This would generate and download a PDF
+      console.log(`Downloading prescription ${prescriptionId}`)
+      alert("PDF download would be implemented here")
+    } else {
+      alert("This prescription cannot be downloaded")
+    }
   }
 
   const handleShare = (prescriptionId: string) => {
-    // Mock share functionality
-    console.log(`Sharing prescription ${prescriptionId}`)
-    alert("Share functionality would be implemented here")
+    // Implement real share functionality
+    const prescription = prescriptions.find(p => p.id === prescriptionId)
+    if (prescription?.canShare) {
+      // This would open share dialog or copy link
+      console.log(`Sharing prescription ${prescriptionId}`)
+      alert("Share functionality would open share dialog")
+    } else {
+      alert("This prescription cannot be shared")
+    }
   }
 
   const handlePrint = (prescriptionId: string) => {
-    // Mock print functionality
-    console.log(`Printing prescription ${prescriptionId}`)
-    window.print()
+    // Implement real print functionality
+    const prescription = prescriptions.find(p => p.id === prescriptionId)
+    if (prescription?.canPrint) {
+      // This would open print dialog for the prescription
+      console.log(`Printing prescription ${prescriptionId}`)
+      window.print()
+    } else {
+      alert("This prescription cannot be printed")
+    }
   }
 
   if (status === "loading") {
@@ -392,7 +383,9 @@ export default function PatientPrescriptionsPage() {
                           <div className="space-y-1 text-sm text-gray-600">
                             <p><span className="font-medium">Dosage:</span> {medication.dosage}</p>
                             <p><span className="font-medium">Frequency:</span> {medication.frequency}</p>
-                            <p><span className="font-medium">Duration:</span> {medication.duration}</p>
+                            {medication.instructions && (
+                              <p><span className="font-medium">Instructions:</span> {medication.instructions}</p>
+                            )}
                           </div>
                         </div>
                       ))}

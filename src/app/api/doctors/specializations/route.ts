@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    // Get all unique specializations from verified and available doctors
-    const doctorProfiles = await prisma.doctorProfile.findMany({
+    // Get unique specializations from all doctors in database
+    const doctors = await prisma.doctorProfile.findMany({
       where: {
-        isAvailable: true,
-        isVerified: true
+        isVerified: true,
+        isAvailable: true
       },
       select: {
         specialization: true
@@ -15,25 +15,42 @@ export async function GET(req: NextRequest) {
     })
 
     // Extract and flatten all specializations
-    const allSpecializations = doctorProfiles
-      .flatMap(profile => profile.specialization)
-      .filter((spec, index, array) => array.indexOf(spec) === index) // Remove duplicates
-      .sort()
+    const allSpecializations: string[] = doctors.flatMap((doctor: any) => doctor.specialization)
+    
+    // Get unique specializations and sort them
+    const uniqueSpecializations: string[] = [...new Set(allSpecializations)].sort()
+
+    // Define the registration form specializations for consistency
+    const registrationSpecializations: string[] = [
+      "Cardiology", "Dermatology", "Endocrinology", "Gastroenterology", 
+      "General Practice", "Neurology", "Oncology", "Orthopedics", 
+      "Psychiatry", "Pulmonology"
+    ]
+
+    // Filter to only include specializations from registration form
+    const filteredSpecializations: string[] = uniqueSpecializations.filter((spec: string) => 
+      registrationSpecializations.includes(spec)
+    )
 
     return NextResponse.json({
       success: true,
-      specializations: allSpecializations,
-      count: allSpecializations.length
+      specializations: filteredSpecializations.length > 0 ? filteredSpecializations : registrationSpecializations,
+      total: filteredSpecializations.length,
+      availableInDatabase: uniqueSpecializations
     })
 
   } catch (error) {
     console.error('Specializations API error:', error)
-    return NextResponse.json(
-      { 
-        error: 'Failed to fetch specializations',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    )
+    
+    // Return registration form specializations as fallback
+    return NextResponse.json({
+      success: true,
+      specializations: [
+        "Cardiology", "Dermatology", "Endocrinology", "Gastroenterology",
+        "General Practice", "Neurology", "Oncology", "Orthopedics",
+        "Psychiatry", "Pulmonology"
+      ],
+      error: 'Database error, using fallback specializations'
+    })
   }
 }

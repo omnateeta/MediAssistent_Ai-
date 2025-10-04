@@ -110,8 +110,34 @@ model PatientProfile {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   appointments    Appointment[]
   medicalRecords  MedicalRecord[]
+  medicalDocuments MedicalDocument[]
   
   @@map("patient_profiles")
+}
+
+// Medical Documents uploaded by patients
+model MedicalDocument {
+  id            String    @id @default(cuid())
+  patientId     String
+  appointmentId String?   // Optional - document may not be tied to specific appointment
+  
+  fileName      String
+  filePath      String    // Local file path
+  fileSize      Int       // Size in bytes
+  mimeType      String    // MIME type of the file
+  
+  // Metadata
+  description   String?   // Optional description from patient
+  category      DocumentCategory? // Type of medical document
+  
+  uploadedAt    DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  
+  @@map("medical_documents")
 }
 
 model DoctorProfile {
@@ -176,6 +202,7 @@ model Appointment {
   
   // File Uploads
   uploadedFiles     AppointmentFile[]
+  medicalDocuments  MedicalDocument[]
   
   // AI Analysis
   aiSummary         AISummary?
@@ -431,4 +458,16 @@ enum RecordType {
   ALLERGY
   SURGERY
   MEDICATION_HISTORY
+}
+
+enum DocumentCategory {
+  LAB_REPORT
+  MEDICAL_HISTORY
+  PRESCRIPTION
+  IMAGING_SCAN
+  INSURANCE_DOCUMENT
+  REFERRAL_LETTER
+  DISCHARGE_SUMMARY
+  VACCINATION_RECORD
+  OTHER
 }

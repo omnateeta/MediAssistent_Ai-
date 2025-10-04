@@ -82,85 +82,48 @@ export default function AppointmentDetailPage() {
     }
   }, [session, status, router])
 
-  // Mock data - in real app, fetch from API based on appointmentId
+  // Fetch appointment data from API
   useEffect(() => {
-    const mockAppointmentDetails: { [key: string]: AppointmentDetail } = {
-      "1": {
-        id: "1",
-        referenceId: "REF-ABC123",
-        patientName: "John Smith",
-        patientAge: 45,
-        patientGender: "Male",
-        contactInfo: "+1 (555) 123-4567",
-        email: "john.smith@email.com",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "10:30",
-        status: "SCHEDULED",
-        urgencyLevel: "HIGH",
-        chiefComplaint: "Chest pain and shortness of breath",
-        symptoms: ["Chest pain", "Shortness of breath", "Fatigue", "Dizziness"],
-        medicalHistory: ["Hypertension", "Family history of heart disease", "Former smoker"],
-        currentMedications: ["Lisinopril 10mg daily", "Metoprolol 50mg twice daily"],
-        allergies: ["Penicillin", "Shellfish"],
-        vitalSigns: {
-          bloodPressure: "145/92 mmHg",
-          heartRate: "88 bpm",
-          temperature: "98.6°F",
-          weight: "185 lbs",
-          height: "5'10\""
-        },
-        hasAiSummary: true,
-        isNewPatient: false,
-        notes: "",
-        diagnosis: "",
-        treatment: "",
-        prescription: "",
-        followUpDate: ""
-      },
-      // Add more mock appointments as needed
-      "2": {
-        id: "2",
-        referenceId: "REF-DEF456",
-        patientName: "Maria Garcia",
-        patientAge: 32,
-        patientGender: "Female",
-        contactInfo: "+1 (555) 987-6543",
-        email: "maria.garcia@email.com",
-        scheduledDate: "2024-10-15",
-        scheduledTime: "11:00",
-        status: "SCHEDULED",
-        urgencyLevel: "MEDIUM",
-        chiefComplaint: "Regular checkup and vaccination",
-        symptoms: ["None"],
-        medicalHistory: ["No significant medical history"],
-        currentMedications: ["None"],
-        allergies: ["None known"],
-        vitalSigns: {
-          bloodPressure: "120/80 mmHg",
-          heartRate: "72 bpm",
-          temperature: "98.4°F",
-          weight: "125 lbs",
-          height: "5'5\""
-        },
-        hasAiSummary: false,
-        isNewPatient: true,
-        notes: "",
-        diagnosis: "",
-        treatment: "",
-        prescription: "",
-        followUpDate: ""
+    const fetchAppointmentDetails = async () => {
+      if (!appointmentId) return
+      
+      try {
+        const res = await fetch(`/api/doctor/appointments/${appointmentId}`, {
+          credentials: 'include'
+        })
+        
+        if (!res.ok) {
+          if (res.status === 404) {
+            console.error('Appointment not found')
+            router.push('/doctor/appointments')
+            return
+          }
+          throw new Error(`Failed to fetch appointment: ${res.status}`)
+        }
+        
+        const data = await res.json()
+        
+        if (data.success && data.appointment) {
+          setAppointment(data.appointment)
+          setNotes(data.appointment.notes || '')
+          setDiagnosis(data.appointment.diagnosis || '')
+          setTreatment(data.appointment.treatment || '')
+          setPrescription(data.appointment.prescription ? 
+            data.appointment.prescription.medications.map((med: any) => 
+              `${med.name} - ${med.dosage} ${med.frequency}${med.instructions ? ` (${med.instructions})` : ''}`
+            ).join('\n') : ''
+          )
+        } else {
+          throw new Error('Invalid response format')
+        }
+      } catch (error) {
+        console.error('Error fetching appointment details:', error)
+        // Could show an error message to user here
       }
     }
-    
-    const appointmentData = mockAppointmentDetails[appointmentId]
-    if (appointmentData) {
-      setAppointment(appointmentData)
-      setNotes(appointmentData.notes)
-      setDiagnosis(appointmentData.diagnosis)
-      setTreatment(appointmentData.treatment)
-      setPrescription(appointmentData.prescription)
-    }
-  }, [appointmentId])
+
+    fetchAppointmentDetails()
+  }, [appointmentId, router])
 
   const getStatusIcon = (status: string) => {
     switch (status) {

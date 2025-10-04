@@ -3,18 +3,13 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
     if (!session || session.user.role !== 'PATIENT') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const appointmentId = params.id
 
     // Get patient profile
     const patientProfile = await prisma.patientProfile.findUnique({
@@ -25,27 +20,11 @@ export async function GET(
       return NextResponse.json({ error: 'Patient profile not found' }, { status: 404 })
     }
 
-    // Fetch appointment details
-    const appointment = await prisma.appointment.findFirst({
-      where: {
-        OR: [
-          { id: appointmentId },
-          { referenceId: appointmentId }
-        ],
-        patientId: patientProfile.id
-      },
+    // Get recent appointments with full details
+    const appointments = await prisma.appointment.findMany({
+      where: { patientId: patientProfile.id },
       include: {
         doctor: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                email: true
-              }
-            }
-          }
-        },
-        patient: {
           include: {
             user: {
               select: {
@@ -60,28 +39,37 @@ export async function GET(
             id: true,
             fileName: true,
             fileSize: true,
-            uploadedAt: true,
-            mimeType: true
+            uploadedAt: true
           }
-        },
-        aiSummary: true,
-        prescription: true
-      }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5
     })
-
-    if (!appointment) {
-      return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
-    }
 
     return NextResponse.json({
       success: true,
-      appointment
+      patientId: patientProfile.id,
+      appointmentCount: appointments.length,
+      appointments: appointments.map(apt => ({
+        id: apt.id,
+        referenceId: apt.referenceId,
+        scheduledDate: apt.scheduledDate,
+        status: apt.status,
+        chiefComplaint: apt.chiefComplaint,
+        symptoms: apt.symptoms,
+        doctorName: apt.doctor.user.name,
+        specialization: apt.doctor.specialization,
+        hasVoiceNote: !!apt.patientVoiceNote,
+        documentCount: apt.medicalDocuments.length,
+        createdAt: apt.createdAt
+      }))
     })
 
   } catch (error) {
-    console.error('Appointment fetch error:', error)
+    console.error('Debug appointments error:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch appointment details' },
+      { error: 'Failed to fetch appointments', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

@@ -38,6 +38,14 @@ export default function PatientRecordsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedFilter, setSelectedFilter] = useState("all")
   const [records, setRecords] = useState<MedicalRecord[]>([])
+  const [showForm, setShowForm] = useState(false)
+  const [formState, setFormState] = useState({
+    title: '',
+    recordType: 'CHECKUP',
+    recordDate: new Date().toISOString().slice(0,10),
+    description: '',
+    attachments: ''
+  })
 
   // Redirect if not authenticated or not a patient
   useEffect(() => {
@@ -206,6 +214,84 @@ export default function PatientRecordsPage() {
         </div>
 
         {/* Search and Filters */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Add Medical Record</CardTitle>
+            <CardDescription>Quickly add a new medical record for testing or real use.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2 mb-4">
+              <Button variant="medical" onClick={() => setShowForm(s => !s)}>{showForm ? 'Close Form' : 'Add Record'}</Button>
+              <Button onClick={async () => {
+                // autofill with dummy data and submit
+                const dummy = {
+                  title: 'Self-reported symptom: headache',
+                  recordType: 'CONSULTATION',
+                  recordDate: new Date().toISOString(),
+                  description: 'Patient reports intermittent headaches for 3 days.',
+                  attachments: []
+                }
+                if (!session?.user?.id) return;
+                try {
+                  const res = await fetch('/api/patient/records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ patientId: session.user.id, ...dummy })
+                  })
+                  if (!res.ok) throw new Error('Failed to create record');
+                  const data = await res.json();
+                  setRecords(r => [data.record, ...r]);
+                } catch (e) {
+                  console.error(e);
+                }
+              }}>Fill & Save Dummy</Button>
+            </div>
+            {showForm && (
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!session?.user?.id) return;
+                try {
+                  const res = await fetch('/api/patient/records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      patientId: session.user.id,
+                      title: formState.title,
+                      recordType: formState.recordType,
+                      recordDate: formState.recordDate,
+                      description: formState.description,
+                      attachments: formState.attachments ? [formState.attachments] : []
+                    })
+                  })
+                  if (!res.ok) throw new Error('Failed to create record');
+                  const data = await res.json();
+                  setRecords(r => [data.record, ...r]);
+                  setShowForm(false);
+                } catch (err) {
+                  console.error(err);
+                }
+              }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <Input placeholder="Title" value={formState.title} onChange={(e:any) => setFormState(s => ({...s, title: e.target.value}))} />
+                  <select className="p-2 border rounded" value={formState.recordType} onChange={(e:any) => setFormState(s => ({...s, recordType: e.target.value}))}>
+                    <option value="CHECKUP">CHECKUP</option>
+                    <option value="LAB_RESULT">LAB_RESULT</option>
+                    <option value="CONSULTATION">CONSULTATION</option>
+                    <option value="TREATMENT">TREATMENT</option>
+                    <option value="VACCINATION">VACCINATION</option>
+                  </select>
+                  <Input type="date" value={formState.recordDate} onChange={(e:any) => setFormState(s => ({...s, recordDate: e.target.value}))} />
+                </div>
+                <div className="mb-4">
+                  <textarea className="w-full p-2 border rounded" placeholder="Description" value={formState.description} onChange={(e:any) => setFormState(s => ({...s, description: e.target.value}))} />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit">Save Record</Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Medical History</CardTitle>

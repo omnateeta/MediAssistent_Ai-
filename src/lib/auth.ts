@@ -3,7 +3,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import bcrypt from "bcryptjs"
-import { prisma } from "@/lib/prisma"
+import { prisma, isPrismaClientReady } from "@/lib/prisma"
 
 declare module "next-auth" {
   interface Session {
@@ -33,7 +33,8 @@ declare module "next-auth/jwt" {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Lazily attach PrismaAdapter only when client is ready to avoid module-eval crashes
+  adapter: isPrismaClientReady ? PrismaAdapter(prisma) : undefined,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,

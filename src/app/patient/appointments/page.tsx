@@ -47,7 +47,7 @@ export default function PatientAppointmentsPage() {
     if (status === "loading") return
     // Require authentication for the appointments page in all environments.
     if (!session) {
-      router.push("/auth/signin")
+      router.push("/auth/signin/patient")
       return
     }
     if (session.user && session.user.role !== "PATIENT") {
@@ -56,9 +56,9 @@ export default function PatientAppointmentsPage() {
         const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
         const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
         const expected = `&expectedRole=PATIENT`
-        router.push(`/auth/signin${cb}${expected}`)
+        router.push(`/auth/signin/patient${cb}`)
       } catch (e) {
-        router.push('/auth/signin')
+        router.push('/auth/signin/patient')
       }
       return
     }
@@ -264,6 +264,7 @@ export default function PatientAppointmentsPage() {
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   placeholder="Search appointments..."
+                  autoComplete="off"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"

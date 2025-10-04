@@ -89,7 +89,7 @@ export default function DoctorSignInPage() {
 
                   const ok = await waitForSession(3000)
                   if (!ok) {
-                    router.push(`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}&expectedRole=DOCTOR`)
+                    router.push(`/auth/signin/doctor?callbackUrl=${encodeURIComponent(callbackUrl)}&expectedRole=DOCTOR`)
                     return
                   }
 

@@ -51,7 +51,7 @@ export default function PatientRecordsPage() {
   useEffect(() => {
     if (status === "loading") return
     if (!session) {
-      router.push("/auth/signin")
+      router.push("/auth/signin/patient")
       return
     }
     if (session.user.role !== "PATIENT") {
@@ -59,9 +59,9 @@ export default function PatientRecordsPage() {
         const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
         const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
         const expected = `&expectedRole=PATIENT`
-        router.push(`/auth/signin${cb}${expected}`)
+        router.push(`/auth/signin/patient${cb}`)
       } catch (e) {
-        router.push('/auth/signin')
+        router.push('/auth/signin/patient')
       }
       return
     }
@@ -287,7 +287,7 @@ export default function PatientRecordsPage() {
                     <option value="TREATMENT">TREATMENT</option>
                     <option value="VACCINATION">VACCINATION</option>
                   </select>
-                  <Input type="date" value={formState.recordDate} onChange={(e:any) => setFormState(s => ({...s, recordDate: e.target.value}))} />
+                  <Input type="date" value={formState.recordDate} onChange={(e:any) => setFormState(s => ({...s, recordDate: e.target.value}))} autoComplete="off" />
                 </div>
                 <div className="mb-4">
                   <textarea className="w-full p-2 border rounded" placeholder="Description" value={formState.description} onChange={(e:any) => setFormState(s => ({...s, description: e.target.value}))} />
@@ -312,6 +312,7 @@ export default function PatientRecordsPage() {
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   placeholder="Search records, doctors, or descriptions..."
+                  autoComplete="off"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"

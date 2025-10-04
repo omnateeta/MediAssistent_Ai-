@@ -35,10 +35,10 @@ export default function SignInForm({ defaultEmail = '', onSubmit, loading = fals
     <form onSubmit={handle} className="space-y-4">
       {error && <div className="text-sm text-red-600">{error}</div>}
 
-      <Input label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Input label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
 
       <div className="relative">
-        <Input label="Password" type={show ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} />
+        <Input label="Password" type={show ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         <button type="button" className="absolute right-3 top-9 text-gray-400 hover:text-gray-600" onClick={() => setShow(!show)}>
           {show ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
         </button>

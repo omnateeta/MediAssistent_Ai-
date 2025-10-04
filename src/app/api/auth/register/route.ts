@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import { prisma } from "@/lib/prisma"
 import { validateEmail } from "@/lib/utils"
+import { addMockUser } from "@/lib/auth-temp"
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,109 +49,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Test database connection
-    try {
-      await prisma.$connect()
-    } catch (dbError) {
-      console.error("Database connection error:", dbError)
-      return NextResponse.json(
-        { message: "Database connection failed. Please ensure the database is set up and running." },
-        { status: 503 }
-      )
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({ where: { email } })
-
-    if (existingUser) {
-      // If an account exists with a different role, return a specific role-mismatch error
-      if (existingUser.role && existingUser.role !== role) {
-        return NextResponse.json(
-          {
-            message: `This email is already registered as ${existingUser.role}. Please sign in as that role or use a different email.`,
-            conflict: 'role_mismatch',
-            existingRole: existingUser.role,
-          },
-          { status: 409 }
-        )
-      }
-
-      // Same role -> generic duplicate
-      return NextResponse.json(
-        { message: "User with this email already exists" },
-        { status: 409 }
-      )
-    }
-
-    // For doctors, check if license number is unique
-    if (role === "DOCTOR" && licenseNumber) {
-      const existingDoctor = await prisma.doctorProfile.findUnique({
-        where: { licenseNumber }
-      })
-
-      if (existingDoctor) {
-        return NextResponse.json(
-          { message: "Doctor with this license number already exists" },
-          { status: 409 }
-        )
-      }
-    }
-
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Create user with role-specific profile
-    const userData: any = {
-      name,
+    // Create user using temporary auth system
+    const user = addMockUser({
       email,
+      name,
       password: hashedPassword,
       role,
-      emailVerified: new Date(), // Auto-verify for demo purposes
-    }
-
-    if (role === "DOCTOR") {
-      userData.doctorProfile = {
-        create: {
-          licenseNumber: licenseNumber || "",
-          specialization: specialization ? [specialization] : [],
-          hospitalAffiliation: hospitalAffiliation || "",
-          isVerified: false, // Doctors need manual verification
-        }
-      }
-    } else if (role === "PATIENT") {
-      userData.patientProfile = {
-        create: {
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-          phoneNumber: phoneNumber || "",
-        }
-      }
-    }
-
-    const user = await prisma.user.create({
-      data: userData,
-      include: {
-        patientProfile: true,
-        doctorProfile: true,
-      }
     })
-
-    // Log registration event (with error handling)
-    try {
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: "REGISTER",
-          resource: "USER",
-          details: {
-            role: user.role,
-            method: "credentials",
-          },
-        },
-      })
-    } catch (auditError) {
-      console.warn("Failed to create audit log:", auditError)
-      // Continue without failing the registration
-    }
 
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user
@@ -166,22 +73,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Registration error:", error)
     
-    // Provide more specific error messages
-    if (error instanceof Error) {
-      if (error.message.includes("connect")) {
-        return NextResponse.json(
-          { message: "Database connection failed. Please check your database configuration." },
-          { status: 503 }
-        )
-      }
-      if (error.message.includes("Unique constraint")) {
-        return NextResponse.json(
-          { message: "User with this email already exists" },
-          { status: 409 }
-        )
-      }
-    }
-
     const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
       {
@@ -190,7 +81,5 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

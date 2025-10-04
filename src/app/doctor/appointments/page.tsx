@@ -61,97 +61,63 @@ export default function DoctorAppointmentsPage() {
     }
   }, [session, status, router])
 
-  // Mock data - in real app, fetch from API
+  // Load appointments from API and keep in sync using polling + focus refetch
   useEffect(() => {
-    const mockAppointments: Appointment[] = [
-      {
-        id: "1",
-        referenceId: "REF-ABC123",
-        patientName: "John Smith",
-        patientAge: 45,
-        scheduledDate: "2024-10-15",
-        scheduledTime: "10:30",
-        status: "SCHEDULED",
-        urgencyLevel: "HIGH",
-        chiefComplaint: "Chest pain and shortness of breath",
-        hasAiSummary: true,
-        isNewPatient: false,
-        contactInfo: "+1 (555) 123-4567"
-      },
-      {
-        id: "2",
-        referenceId: "REF-DEF456", 
-        patientName: "Maria Garcia",
-        patientAge: 32,
-        scheduledDate: "2024-10-15",
-        scheduledTime: "11:00",
-        status: "SCHEDULED",
-        urgencyLevel: "MEDIUM",
-        chiefComplaint: "Regular checkup and vaccination",
-        hasAiSummary: false,
-        isNewPatient: true,
-        contactInfo: "+1 (555) 987-6543"
-      },
-      {
-        id: "3",
-        referenceId: "REF-GHI789",
-        patientName: "Robert Johnson",
-        patientAge: 67,
-        scheduledDate: "2024-10-15",
-        scheduledTime: "14:00",
-        status: "IN_PROGRESS",
-        urgencyLevel: "HIGH",
-        chiefComplaint: "Follow-up for diabetes management",
-        hasAiSummary: true,
-        isNewPatient: false,
-        contactInfo: "+1 (555) 456-7890"
-      },
-      {
-        id: "4",
-        referenceId: "REF-JKL012",
-        patientName: "Sarah Wilson",
-        patientAge: 28,
-        scheduledDate: "2024-10-15",
-        scheduledTime: "15:30",
-        status: "COMPLETED",
-        urgencyLevel: "LOW",
-        chiefComplaint: "Skin rash and allergies",
-        hasAiSummary: true,
-        isNewPatient: false,
-        contactInfo: "+1 (555) 321-0987"
-      },
-      {
-        id: "5",
-        referenceId: "REF-MNO345",
-        patientName: "David Brown",
-        patientAge: 52,
-        scheduledDate: "2024-10-16",
-        scheduledTime: "09:00",
-        status: "SCHEDULED",
-        urgencyLevel: "MEDIUM",
-        chiefComplaint: "Back pain and mobility issues",
-        hasAiSummary: false,
-        isNewPatient: true,
-        contactInfo: "+1 (555) 654-3210"
-      },
-      {
-        id: "6",
-        referenceId: "REF-PQR678",
-        patientName: "Emily Davis",
-        patientAge: 41,
-        scheduledDate: "2024-10-16",
-        scheduledTime: "10:15",
-        status: "CANCELLED",
-        urgencyLevel: "LOW",
-        chiefComplaint: "Headaches and fatigue",
-        hasAiSummary: false,
-        isNewPatient: false,
-        contactInfo: "+1 (555) 789-0123"
+    let mounted = true
+    let interval: number | undefined
+
+    const mapAppointments = (appts: any[]): Appointment[] =>
+      appts.map((a: any) => ({
+        id: a.id,
+        referenceId: a.referenceId || `APPT-${String(a.id).slice(0,8)}`,
+        patientName: a.patient?.user?.name || a.patient?.name || 'Unknown',
+        patientAge: a.patient?.age ?? 0,
+        scheduledDate: a.scheduledDate ? new Date(a.scheduledDate).toISOString().split('T')[0] : '',
+        scheduledTime: a.scheduledDate ? new Date(a.scheduledDate).toTimeString().slice(0,5) : '00:00',
+        status: a.status ?? 'SCHEDULED',
+        urgencyLevel: a.aiSummary?.urgencyLevel ?? 'LOW',
+        chiefComplaint: a.chiefComplaint ?? '',
+        hasAiSummary: Boolean(a.aiSummary),
+        isNewPatient: Boolean(a.patient?.isNewPatient),
+        contactInfo: a.patient?.phoneNumber || a.patient?.user?.email || '',
+      }))
+
+    const loadAppointments = async () => {
+      try {
+        const res = await fetch(`/api/doctor/appointments`, { credentials: 'include' })
+        if (res.status === 401) {
+          // Not authenticated - send to sign in with callback so doctor returns here after login
+          const cb = encodeURIComponent(window.location.pathname + window.location.search)
+          router.push(`/auth/signin/doctor?callbackUrl=${cb}`)
+          return
+        }
+
+        const json = await res.json()
+        const appts = json.appointments || []
+        const mapped = mapAppointments(appts)
+        if (mounted) setAppointments(mapped)
+      } catch (e) {
+        console.error('Error fetching doctor appointments:', e)
+        if (mounted) setAppointments([])
       }
-    ]
-    
-    setAppointments(mockAppointments)
-  }, [])
+    }
+
+    // Initial load
+    loadAppointments()
+
+    // Poll every 15 seconds to pick up status changes
+    interval = window.setInterval(loadAppointments, 15000)
+
+    // Refetch on window focus for near-real-time updates
+    const onFocus = () => loadAppointments()
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      mounted = false
+      if (interval) clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [router])
 
   // Filter appointments based on search and filters
   const filteredAppointments = appointments.filter(appointment => {
@@ -305,6 +271,7 @@ export default function DoctorAppointmentsPage() {
                 <MagnifyingGlassIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Search patients, reference ID, or complaints..."
+                  autoComplete="off"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"

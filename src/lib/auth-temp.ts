@@ -96,6 +96,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        role: { label: "Role", type: "text" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -117,6 +118,11 @@ export const authOptions: NextAuthOptions = {
 
         if (!user.isActive) {
           throw new Error("Account is deactivated")
+        }
+
+        // If the client requested a specific role, enforce it here
+        if (credentials.role && user.role && credentials.role !== user.role) {
+          throw new Error(`Role mismatch: this account is registered as ${user.role}`)
         }
 
         return {

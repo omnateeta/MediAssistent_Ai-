@@ -320,6 +320,7 @@ export default function DoctorPatientsPage() {
                 <MagnifyingGlassIcon className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Search patients, email, or conditions..."
+                  autoComplete="off"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"

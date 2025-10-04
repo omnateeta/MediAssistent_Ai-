@@ -21,8 +21,16 @@ export default function useAuthGuard(requiredRole?: string) {
           try {
             const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
             const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
-            const expected = `&expectedRole=${encodeURIComponent(requiredRole)}`
-            router.push(`/auth/signin${cb}${expected}`)
+            
+            // If we know the required role, redirect directly to the specific signin page
+            if (requiredRole === 'PATIENT') {
+              router.push(`/auth/signin/patient${cb}`)
+            } else if (requiredRole === 'DOCTOR') {
+              router.push(`/auth/signin/doctor${cb}`)
+            } else {
+              const expected = `&expectedRole=${encodeURIComponent(requiredRole)}`
+              router.push(`/auth/signin${cb}${expected}`)
+            }
           } catch (e) {
             router.push('/auth/signin')
           }
@@ -58,7 +66,17 @@ export default function useAuthGuard(requiredRole?: string) {
       try {
         const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
         const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
-        router.push(`/auth/signin${cb}`)
+        
+        // If we know the required role, redirect directly to the specific signin page
+        if (requiredRole === 'PATIENT') {
+          router.push(`/auth/signin/patient${cb}`)
+        } else if (requiredRole === 'DOCTOR') {
+          router.push(`/auth/signin/doctor${cb}`)
+        } else {
+          // No specific role required, go to main signin page
+          const expected = requiredRole ? `&expectedRole=${encodeURIComponent(requiredRole)}` : ''
+          router.push(`/auth/signin${cb}${expected}`)
+        }
       } catch (e) {
         router.push('/auth/signin')
       }

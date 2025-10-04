@@ -65,7 +65,7 @@ export default function BookAppointmentPage() {
   useEffect(() => {
     if (status === "loading") return
     if (!session) {
-      router.push("/auth/signin")
+      router.push("/auth/signin/patient")
       return
     }
     if (session.user.role !== "PATIENT") {
@@ -73,9 +73,9 @@ export default function BookAppointmentPage() {
         const returnTo = typeof window !== 'undefined' ? window.location.pathname + window.location.search : undefined
         const cb = returnTo ? `?callbackUrl=${encodeURIComponent(returnTo)}` : ''
         const expected = `&expectedRole=PATIENT`
-        router.push(`/auth/signin${cb}${expected}`)
+        router.push(`/auth/signin/patient${cb}`)
       } catch (e) {
-        router.push('/auth/signin')
+        router.push('/auth/signin/patient')
       }
       return
     }
@@ -237,7 +237,7 @@ export default function BookAppointmentPage() {
         // If user is not authenticated, redirect to sign-in
         if (res.status === 401) {
           const cb = encodeURIComponent(pathname || '/patient/book')
-          router.push(`/auth/signin?callbackUrl=${cb}&from=booking`)
+          router.push(`/auth/signin/patient?callbackUrl=${cb}&from=booking`)
           return
         }
 

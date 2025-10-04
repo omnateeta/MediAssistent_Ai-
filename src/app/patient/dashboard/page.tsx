@@ -57,7 +57,7 @@ export default function PatientDashboardPage() {
         if (res.status === 401) {
           // Not authenticated - send to sign in with callback so user returns here after login
           const cb = encodeURIComponent(window.location.pathname + window.location.search)
-          router.push(`/auth/signin?callbackUrl=${cb}`)
+          router.push(`/auth/signin/patient?callbackUrl=${cb}`)
           return
         }
         const data = await res.json()

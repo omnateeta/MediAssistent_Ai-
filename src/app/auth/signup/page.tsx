@@ -113,24 +113,54 @@ export default function SignUpPage() {
         return
       }
 
-      // Verify the session is active (some dev setups require NEXTAUTH_URL/NEXTAUTH_SECRET)
+      // Create tab token as fallback for session issues
       try {
-        const session = await getSession()
-        if (session && session.user && session.user.role === selectedRole) {
-          // session active and role matches
-          if (selectedRole === 'DOCTOR') router.push('/doctor/dashboard')
-          else router.push('/patient/dashboard')
-          setIsLoading(false)
-          return
+        const r = await fetch('/api/tab-login', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ email: formData.email, password: formData.password }) 
+        })
+        const j = await r.json()
+        if (j?.token) { 
+          try { sessionStorage.setItem('tab_token', j.token) } catch {} 
         }
       } catch (e) {
-        console.warn('getSession() failed after signup signIn:', e)
+        console.warn('Failed to create tab token:', e)
       }
 
-      // If we reach here, auto sign-in didn't produce an active session. Send the user to sign-in with helpful context.
+      // Wait for session to be established with multiple attempts
+      const waitForSession = async (maxAttempts = 10, delay = 500) => {
+        for (let i = 0; i < maxAttempts; i++) {
+          try {
+            const session = await getSession()
+            if (session && session.user && session.user.role === selectedRole) {
+              return true
+            }
+          } catch (e) {
+            console.warn(`Session check attempt ${i + 1} failed:`, e)
+          }
+          await new Promise(res => setTimeout(res, delay))
+        }
+        return false
+      }
+
+      const sessionEstablished = await waitForSession()
+      
+      if (sessionEstablished) {
+        // Session is active and role matches - redirect to appropriate dashboard
+        if (selectedRole === 'DOCTOR') {
+          router.push('/doctor/dashboard')
+        } else {
+          router.push('/patient/dashboard')
+        }
+        setIsLoading(false)
+        return
+      }
+
+      // If session still not established, redirect to signin with helpful context
       const cbPath = selectedRole === 'DOCTOR' ? '/doctor/dashboard' : '/patient/dashboard'
       const cb = encodeURIComponent(cbPath)
-      try { window.alert('Registration complete — please sign in to continue. If you are testing locally, ensure NEXTAUTH_URL and NEXTAUTH_SECRET are set.') } catch {}
+      console.warn('Session not established after registration, redirecting to signin')
       router.push(`/auth/signin?callbackUrl=${cb}&expectedRole=${encodeURIComponent(selectedRole ?? '')}`)
       setIsLoading(false)
       return
@@ -292,6 +322,7 @@ export default function SignUpPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter your full name"
+                    autoComplete="name"
                   />
 
                   <Input
@@ -301,6 +332,7 @@ export default function SignUpPage() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="Enter your email"
+                    autoComplete="email"
                   />
 
                   <div className="relative">
@@ -312,6 +344,7 @@ export default function SignUpPage() {
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       placeholder="Create a password"
                       helperText="Must be at least 8 characters long"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -334,6 +367,7 @@ export default function SignUpPage() {
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                       placeholder="Confirm your password"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
@@ -357,6 +391,7 @@ export default function SignUpPage() {
                         value={formData.licenseNumber}
                         onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
                         placeholder="Enter your license number"
+                        autoComplete="off"
                       />
                       <Input
                         label="Specialization"
@@ -365,6 +400,7 @@ export default function SignUpPage() {
                         value={formData.specialization}
                         onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
                         placeholder="e.g., Cardiology, Pediatrics"
+                        autoComplete="off"
                       />
                       <Input
                         label="Hospital/Clinic Affiliation"
@@ -372,6 +408,7 @@ export default function SignUpPage() {
                         value={formData.hospitalAffiliation}
                         onChange={(e) => setFormData({ ...formData, hospitalAffiliation: e.target.value })}
                         placeholder="Enter your workplace"
+                        autoComplete="organization"
                       />
                     </>
                   ) : (
@@ -381,6 +418,7 @@ export default function SignUpPage() {
                         type="date"
                         value={formData.dateOfBirth}
                         onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                        autoComplete="bday"
                       />
                       <Input
                         label="Phone Number"
@@ -388,6 +426,7 @@ export default function SignUpPage() {
                         value={formData.phoneNumber}
                         onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                         placeholder="Enter your phone number"
+                        autoComplete="tel"
                       />
                     </>
                   )}

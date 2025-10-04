@@ -39,8 +39,16 @@ export default function PatientSignInPage() {
         try {
           const r = await fetch('/api/tab-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: formData.email, password: formData.password }) })
           const j = await r.json().catch(() => null)
-          if (j?.token) { try { sessionStorage.setItem('tab_token', j.token) } catch {} }
-        } catch {}
+          if (j?.token) { 
+            try { 
+              sessionStorage.setItem('tab_token', j.token) 
+            } catch (e) {
+              console.warn('Failed to store tab token:', e)
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to create tab token:', e)
+        }
 
         // Wait briefly for next-auth session to become available (poll)
         const waitForSession = async (timeout = 3000) => {
@@ -100,8 +108,34 @@ export default function PatientSignInPage() {
                   try {
                     const r = await fetch('/api/tab-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
                     const j = await r.json()
-                    if (j.token) { try { sessionStorage.setItem('tab_token', j.token) } catch {} }
-                  } catch {}
+                    if (j.token) { 
+                      try { 
+                        sessionStorage.setItem('tab_token', j.token) 
+                      } catch (e) {
+                        console.warn('Failed to store tab token:', e)
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('Failed to create tab token:', e)
+                  }
+
+                  // Wait for session to be established
+                  const waitForSession = async (timeout = 3000) => {
+                    const start = Date.now()
+                    while (Date.now() - start < timeout) {
+                      const s = await getSession()
+                      if (s && s.user && s.user.role === 'PATIENT') return true
+                      await new Promise(res => setTimeout(res, 200))
+                    }
+                    return false
+                  }
+
+                  const ok = await waitForSession(3000)
+                  if (!ok) {
+                    router.push(`/auth/signin/patient?callbackUrl=${encodeURIComponent(callbackUrl)}&expectedRole=PATIENT`)
+                    return
+                  }
+
                   router.push(callbackUrl)
                 }
               } catch (e) { setError('An unexpected error occurred') }

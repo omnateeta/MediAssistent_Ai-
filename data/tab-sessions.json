@@ -1,6 +1,14 @@
 {
   "sessions": [
     {
+      "token": "02b59cad-8620-4561-8f21-612044691052",
+      "userId": "cmgbw0hs40000vbw8tb1smwjq",
+      "email": "test@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-10-04T10:40:19.449Z",
+      "expiresAt": "2025-10-05T10:40:19.449Z"
+    },
+    {
       "token": "df421568-7767-4921-8e50-43ef016150e9",
       "userId": "cmgbw0hs40000vbw8tb1smwjq",
       "email": "test@gmail.com",

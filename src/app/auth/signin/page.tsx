@@ -11,6 +11,7 @@ import { HeartIcon, EyeIcon, EyeSlashIcon, UserIcon, UserGroupIcon } from "@hero
 import { motion } from "framer-motion"
 
 export default function SignInPage() {
+<<<<<<<<< Temporary merge branch 1
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || "/"
@@ -62,6 +63,10 @@ export default function SignInPage() {
       setIsLoading(false)
     }
   }
+=========
+  const [selectedRole, setSelectedRole] = useState<"PATIENT" | "DOCTOR" | null>(null)
+>>>>>>>>> Temporary merge branch 2
+
   return (
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
@@ -80,6 +85,7 @@ export default function SignInPage() {
           <p className="mt-2 text-sm text-gray-600">Choose your role to sign in</p>
         </div>
 
+<<<<<<<<< Temporary merge branch 1
         <Card>
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
@@ -91,66 +97,19 @@ export default function SignInPage() {
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                 {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input
-                label="Email address"
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="Enter your email"
-              />
-
-              <div className="relative">
-                <Input
-                  label="Password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Enter your password"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeSlashIcon className="w-5 h-5" />
-                  ) : (
-                    <EyeIcon className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="text-sm">
-                  <Link href="/auth/register" className="text-blue-600 hover:underline">Don't have an account?</Link>
-                </div>
-                <Button type="submit" disabled={isLoading}>{isLoading ? 'Signing in...' : 'Sign in'}</Button>
-              </div>
-            </form>
-
-            <div className="pt-4">
-              <Button variant="outline" onClick={handleGoogleSignIn} disabled={isLoading}>Sign in with Google</Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-4">
+=========
+        <div className="grid grid-cols-1 gap-4">
           <Link href="/auth/signin/patient">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full p-6 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left">
               <div className="flex items-center space-x-4">
-                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg">
-                  <UserIcon className="w-6 h-6 text-blue-600" />
+                <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg">
+                  <UserIcon className="w-6 h-6 text-green-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">I'm a Patient</h3>
-                  <p className="text-sm text-gray-600">Book appointments and view history</p>
+                  <p className="text-sm text-gray-600">Book appointments and manage your records</p>
                 </div>
+>>>>>>>>> Temporary merge branch 2
               </div>
             </motion.div>
           </Link>

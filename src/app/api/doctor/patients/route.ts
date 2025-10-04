@@ -18,17 +18,19 @@ export async function GET(request: NextRequest) {
   // }
 
   try {
-    // Fetch patients for the doctor from the database
-    // This assumes a relation between doctor and patients exists
-    const patients = await prisma.patientProfile.findMany({
-      where: {
-        doctorId: doctorId,
-      },
-      include: {
-        medicalRecords: true,
-      },
-    });
-    return NextResponse.json({ patients });
+    // Find appointments for the doctor and load unique patient profiles
+    const appointments = await prisma.appointment.findMany({
+      where: { doctorId },
+      include: { patient: true },
+    })
+
+    const patientsMap: Record<string, any> = {}
+    for (const a of appointments) {
+      if (a.patient) patientsMap[a.patient.id] = a.patient
+    }
+
+    const patients = Object.values(patientsMap)
+    return NextResponse.json({ patients })
   } catch (error) {
     return NextResponse.json({ message: "Error fetching patients", error: String(error) }, { status: 500 });
   }

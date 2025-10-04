@@ -171,10 +171,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
       { 
         message: "Internal server error",
+<<<<<<< HEAD
         error: process.env.NODE_ENV === 'development' && error instanceof Error ? error.message : undefined
+=======
+        error: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+>>>>>>> 364e8688f32e1851dc0d38b962a011e4c9a4446e
       },
       { status: 500 }
     )

@@ -11,7 +11,75 @@ import { HeartIcon, EyeIcon, EyeSlashIcon, UserIcon, UserGroupIcon } from "@hero
 import { motion } from "framer-motion"
 
 export default function SignInPage() {
+<<<<<<< HEAD
   const [selectedRole, setSelectedRole] = useState<"PATIENT" | "DOCTOR" | null>(null)
+=======
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get("callbackUrl") || "/"
+  const from = searchParams.get("from") || null
+  
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  })
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const result = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+        callbackUrl,
+      })
+
+      if (result?.error) {
+        setError(result.error)
+      } else {
+        // If credentials sign-in succeeded, redirect to callbackUrl (or role-specific)
+        if (callbackUrl && callbackUrl !== '/') {
+          // callbackUrl may be an encoded pathname from booking page
+          try {
+            const decoded = decodeURIComponent(callbackUrl)
+            router.push(decoded)
+            return
+          } catch (e) {
+            // fallthrough
+          }
+        }
+
+        // Get the updated session to check user role as fallback
+        const session = await getSession()
+        if (session?.user.role === 'DOCTOR') {
+          router.push('/doctor/dashboard')
+        } else {
+          router.push('/patient/dashboard')
+        }
+      }
+    } catch (error) {
+      setError("An unexpected error occurred")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true)
+    try {
+      await signIn("google", { callbackUrl })
+    } catch (error) {
+      setError("Failed to sign in with Google")
+      setIsLoading(false)
+    }
+  }
+>>>>>>> 364e8688f32e1851dc0d38b962a011e4c9a4446e
 
   return (
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -31,6 +99,7 @@ export default function SignInPage() {
           <p className="mt-2 text-sm text-gray-600">Choose your role to sign in</p>
         </div>
 
+<<<<<<< HEAD
         <div className="grid grid-cols-1 gap-4">
           <Link href="/auth/signin/patient">
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full p-6 border-2 border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left">
@@ -42,6 +111,25 @@ export default function SignInPage() {
                   <h3 className="text-lg font-semibold text-gray-900">I'm a Patient</h3>
                   <p className="text-sm text-gray-600">Book appointments and manage your records</p>
                 </div>
+=======
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign In</CardTitle>
+            <CardDescription>
+              Enter your credentials to access your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {from === 'booking' && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-md text-sm">
+                You need to sign in to complete your booking. After sign in you'll be returned to the booking page.
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+                {error}
+>>>>>>> 364e8688f32e1851dc0d38b962a011e4c9a4446e
               </div>
             </motion.div>
           </Link>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import {
   SparklesIcon,
   CheckCircleIcon
 } from "@heroicons/react/24/outline"
+import { DocumentTextIcon } from "@heroicons/react/24/outline"
 import { motion } from "framer-motion"
 
 interface Doctor {
@@ -36,6 +38,7 @@ interface TimeSlot {
 export default function BookAppointmentPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const pathname = usePathname()
   
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
@@ -128,13 +131,31 @@ export default function BookAppointmentPage() {
   ]
 
   useEffect(() => {
-    if (formData.specialization) {
-      // Filter doctors by specialization
-      const filteredDoctors = mockDoctors.filter(doctor =>
-        doctor.specialization.includes(formData.specialization)
-      )
-      setDoctors(filteredDoctors)
+    // fetch doctors from backend (fall back to mock data)
+    const loadDoctors = async () => {
+      try {
+        const res = await fetch('/api/doctor/list')
+        if (res.ok) {
+          const json = await res.json()
+          const backendDoctors: Doctor[] = json.doctors || []
+          setDoctors(backendDoctors)
+          return
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      if (formData.specialization) {
+        const filteredDoctors = mockDoctors.filter(doctor =>
+          doctor.specialization.includes(formData.specialization)
+        )
+        setDoctors(filteredDoctors)
+      } else {
+        setDoctors(mockDoctors)
+      }
     }
+
+    loadDoctors()
   }, [formData.specialization])
 
   useEffect(() => {
@@ -186,12 +207,75 @@ export default function BookAppointmentPage() {
     setIsLoading(true)
     
     try {
-      // Mock API call - in real app, submit to backend
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Generate reference ID and redirect to confirmation
-      const referenceId = `REF-${Date.now().toString(36).toUpperCase()}`
-      router.push(`/patient/appointment-confirmation?ref=${referenceId}`)
+      // Submit to backend API to create appointment
+      const res = await fetch('/api/patient/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          specialization: formData.specialization,
+          doctorId: formData.doctorId,
+          appointmentDate: formData.appointmentDate,
+          appointmentTime: formData.appointmentTime,
+          chiefComplaint: formData.chiefComplaint,
+          symptoms: formData.symptoms,
+          symptomDuration: formData.symptomDuration,
+          painLevel: formData.painLevel,
+          allergies: formData.allergies,
+          currentMedications: formData.currentMedications,
+        })
+      })
+
+      if (!res.ok) {
+        // If user is not authenticated, redirect to sign-in
+        if (res.status === 401) {
+          // In development, automatically retry using the dev-only fallback so you can test without auth
+          if (process.env.NODE_ENV !== 'production') {
+            try {
+              const devEmail = 'patient.demo@demo.local'
+              const retry = await fetch(`/api/patient/appointments?devUserEmail=${encodeURIComponent(devEmail)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  specialization: formData.specialization,
+                  doctorId: formData.doctorId,
+                  appointmentDate: formData.appointmentDate,
+                  appointmentTime: formData.appointmentTime,
+                  chiefComplaint: formData.chiefComplaint,
+                  symptoms: formData.symptoms,
+                  symptomDuration: formData.symptomDuration,
+                  painLevel: formData.painLevel,
+                  allergies: formData.allergies,
+                  currentMedications: formData.currentMedications,
+                })
+              })
+
+              if (retry.ok) {
+                const data = await retry.json()
+                const appointmentId = data?.appointment?.id
+                router.push(`/patient/appointment-confirmation?ref=${appointmentId || 'REF-' + Date.now().toString(36).toUpperCase()}`)
+                return
+              }
+            } catch (e) {
+              console.error('Dev fallback appointment create failed', e)
+            }
+          }
+
+          // redirect to sign-in and return back to this booking page after auth
+          const cb = encodeURIComponent(pathname || '/patient/book')
+          router.push(`/auth/signin?callbackUrl=${cb}&from=booking`)
+          return
+        }
+
+        const err = await res.json().catch(() => ({}))
+        console.error('Create appointment failed:', res.status, err)
+        throw new Error(err?.error || 'Failed to create appointment')
+      }
+
+      const data = await res.json()
+      const appointmentId = data?.appointment?.id
+
+      // Redirect to confirmation with appointment id
+      router.push(`/patient/appointment-confirmation?ref=${appointmentId || 'REF-' + Date.now().toString(36).toUpperCase()}`)
     } catch (error) {
       console.error("Error booking appointment:", error)
     } finally {

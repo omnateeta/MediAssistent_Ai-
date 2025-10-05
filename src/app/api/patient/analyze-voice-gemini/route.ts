@@ -6,6 +6,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
+export const maxDuration = 30 // Increase timeout for AI processing
+
 export async function POST(req: NextRequest) {
   try {
     console.log('🎤 MEDICAL AI VOICE ANALYSIS - Starting request...')
@@ -30,11 +32,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Audio file required for medical analysis' }, { status: 400 })
     }
     
-    // MEDICAL SAFETY: Validate audio file properties
-    if (audioFile.size < 1000) {
+    // More lenient validation for brief recordings
+    if (audioFile.size < 500) {
       console.warn('⚠️ Audio file too small for reliable medical analysis:', audioFile.size, 'bytes')
       return NextResponse.json({ 
-        error: 'Audio recording too short for accurate medical analysis. Please record for at least 5 seconds.',
+        error: 'Audio recording too short. Please record for at least 3 seconds.',
         code: 'AUDIO_TOO_SHORT'
       }, { status: 400 })
     }
@@ -54,60 +56,91 @@ export async function POST(req: NextRequest) {
     const audioBase64 = Buffer.from(arrayBuffer).toString('base64')
 
     // Initialize Gemini model
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
 
-    // CRITICAL MEDICAL AI PROMPT - Designed for Maximum Accuracy
+    // OPTIMIZED MEDICAL AI PROMPT - Designed for Fast, Accurate Brief Descriptions
     const medicalPrompt = `
-You are a medical-grade AI assistant with strict accuracy requirements for analyzing patient voice recordings.
+You are a medical-grade AI assistant optimized for analyzing brief patient voice recordings.
 
-CRITICAL SAFETY REQUIREMENTS:
-1. ONLY provide medically accurate information based on established medical knowledge
-2. NEVER speculate or provide information without clear evidence
-3. Use proper medical terminology and ICD-10 diagnostic criteria
-4. Assess urgency levels according to emergency medicine triage protocols
-5. Flag red flag symptoms that require immediate medical attention
-6. Provide confidence scores based on symptom clarity and medical evidence
+TASK: Provide a concise, accurate medical analysis from the patient's voice recording.
 
-RESPOND ONLY with a valid JSON object:
+FORMAT REQUIREMENTS:
+- Respond ONLY with a valid JSON object
+- Keep responses focused and brief
+- Use clear medical terminology
+- Include confidence scoring
+
+REQUIRED JSON STRUCTURE:
 {
-  "transcription": "Exact word-for-word transcription with medical accuracy",
+  "transcription": "Word-for-word transcription (brief and clear)",
   "analysis": {
-    "chiefComplaint": "Primary complaint using medical terminology",
-    "symptoms": "Comprehensive symptom list with medical descriptors",
-    "symptomDuration": "Precise timeline of symptom onset and progression",
-    "painLevel": "1-10 pain scale with context (if mentioned)",
-    "currentMedications": "Exact medications with dosages if mentioned",
-    "allergies": "Specific allergies or 'None reported'",
-    "urgencyLevel": "LOW/MEDIUM/HIGH based on triage protocols",
-    "suggestedSymptoms": "Evidence-based differential diagnosis list",
-    "additionalInfo": "Medically relevant insights and recommendations",
-    "confidence": "0.0-1.0 based on symptom clarity and medical evidence",
-    "criticalAlerts": "Array of urgent medical alerts if applicable"
-  },
-  "medicalValidation": {
-    "clinicalAccuracy": "Verification status",
-    "evidenceBase": "Medical evidence foundation",
-    "safetyChecked": "Patient safety verification"
+    "chiefComplaint": "Primary complaint (10-20 words max)",
+    "symptoms": "Key symptoms mentioned (bullet list format)",
+    "symptomDuration": "Timeline if mentioned",
+    "painLevel": "1-10 scale if pain mentioned",
+    "currentMedications": "Medications if mentioned",
+    "allergies": "Allergies if mentioned",
+    "urgencyLevel": "LOW/MEDIUM/HIGH",
+    "confidence": "0.0-1.0 confidence score"
   }
 }
 
-MEDICAL ANALYSIS FOCUS:
-1. Primary complaint identification using medical terminology
-2. Symptom constellation analysis for differential diagnosis
-3. Temporal relationship and progression patterns
-4. Medication reconciliation and contraindications
-5. Emergency red flags and triage urgency
-6. Evidence-based clinical correlations
-7. Patient safety and appropriate care recommendations
+INSTRUCTIONS:
+1. Focus on extracting key medical information efficiently
+2. Be concise - brief recordings require brief, focused analysis
+3. If information is unclear, make reasonable assumptions but note low confidence
+4. Always provide a confidence score
+5. Use medical terminology appropriately but keep it accessible
 
-DISCLAIMER: All AI analysis requires professional medical validation.
+EXAMPLE OUTPUT:
+{
+  "transcription": "I have a headache and feel nauseous",
+  "analysis": {
+    "chiefComplaint": "Headache with nausea",
+    "symptoms": ["Headache", "Nausea"],
+    "symptomDuration": "Not specified",
+    "painLevel": 5,
+    "currentMedications": "Not mentioned",
+    "allergies": "Not mentioned",
+    "urgencyLevel": "LOW",
+    "confidence": 0.8
+  }
+}
 `
 
     try {
       console.log('🤖 Initializing medical-grade AI analysis...')
       
-      // MEDICAL AI: Enhanced analysis with safety protocols
-      const medicalAnalysis = await generateAdvancedMedicalAnalysis()
+      // Generate content using Gemini AI with the audio file
+      const result = await model.generateContent([
+        medicalPrompt,
+        {
+          inlineData: {
+            data: audioBase64,
+            mimeType: 'audio/webm'
+          }
+        }
+      ])
+      
+      const response = await result.response
+      const text = await response.text()
+      
+      console.log('🤖 Raw AI response:', text)
+      
+      // Parse the JSON response from AI
+      let medicalAnalysis
+      try {
+        // Extract JSON from potential markdown code blocks
+        const jsonMatch = text.match(/\{[^]*\}/)
+        if (jsonMatch) {
+          medicalAnalysis = JSON.parse(jsonMatch[0])
+        } else {
+          medicalAnalysis = JSON.parse(text)
+        }
+      } catch (parseError) {
+        console.error('❌ Failed to parse AI JSON response:', parseError)
+        throw new Error('Invalid AI response format')
+      }
       
       // MEDICAL VALIDATION: Verify analysis meets medical standards
       const validationResult = validateMedicalAnalysis(medicalAnalysis)
@@ -122,18 +155,19 @@ DISCLAIMER: All AI analysis requires professional medical validation.
       return NextResponse.json({
         success: true,
         analysis: {
-          ...medicalAnalysis,
-          isHighConfidence: medicalAnalysis.confidence >= 0.75,
+          ...medicalAnalysis.analysis, // Return just the analysis part
+          transcription: medicalAnalysis.transcription,
+          isHighConfidence: medicalAnalysis.analysis.confidence >= 0.6, // Lower threshold for brief recordings
           validationStatus: 'PASSED',
           analysisId: `MED_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`
         },
-        provider: 'Medical-Grade AI Analysis (Safety Enhanced)',
+        provider: 'Google Gemini AI Medical Analysis',
         timestamp: new Date().toISOString(),
         medicalValidation: {
           clinicalAccuracy: 'Verified by medical protocols',
           evidenceBase: 'Based on standard diagnostic criteria',
           safetyChecked: 'Patient safety protocols applied',
-          confidenceLevel: medicalAnalysis.confidence >= 0.75 ? 'HIGH' : 'REQUIRES_REVIEW'
+          confidenceLevel: medicalAnalysis.analysis.confidence >= 0.6 ? 'HIGH' : 'REQUIRES_REVIEW'
         },
         disclaimer: 'AI analysis for reference only. Professional medical evaluation required for all symptoms. This analysis should not replace professional medical advice.'
       })
@@ -169,144 +203,26 @@ DISCLAIMER: All AI analysis requires professional medical validation.
 function validateMedicalAnalysis(analysis: any): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
   
-  // Validate transcription quality
-  if (!analysis.transcription || analysis.transcription.length < 10) {
+  // Validate transcription quality - more lenient for brief recordings
+  if (!analysis.transcription || analysis.transcription.length < 3) {
     errors.push('Transcription too short for medical analysis')
   }
   
   // Validate confidence level
-  if (typeof analysis.confidence !== 'number' || analysis.confidence < 0 || analysis.confidence > 1) {
+  if (typeof analysis.analysis.confidence !== 'number' || analysis.analysis.confidence < 0 || analysis.analysis.confidence > 1) {
     errors.push('Invalid confidence score')
   }
   
-  // Validate medical fields
-  if (!analysis.chiefComplaint || analysis.chiefComplaint.length < 3) {
-    errors.push('Chief complaint missing or too short')
-  }
-  
-  // Validate pain level
-  if (analysis.painLevel && (analysis.painLevel < 1 || analysis.painLevel > 10)) {
-    errors.push('Invalid pain level - must be 1-10')
-  }
-  
-  // Validate urgency level
-  const validUrgencyLevels = ['LOW', 'MEDIUM', 'HIGH']
-  if (analysis.urgencyLevel && !validUrgencyLevels.includes(analysis.urgencyLevel)) {
-    errors.push('Invalid urgency level')
+  // Validate urgency level if present
+  if (analysis.analysis.urgencyLevel) {
+    const validUrgencyLevels = ['LOW', 'MEDIUM', 'HIGH']
+    if (!validUrgencyLevels.includes(analysis.analysis.urgencyLevel)) {
+      errors.push('Invalid urgency level')
+    }
   }
   
   return {
     isValid: errors.length === 0,
     errors
-  }
-}
-
-// CRITICAL: Medical-Grade AI Analysis with Strict Accuracy Controls
-async function generateAdvancedMedicalAnalysis(): Promise<any> {
-  // Simulate real AI processing time
-  await new Promise(resolve => setTimeout(resolve, 3000))
-  
-  // MEDICAL SAFETY PROTOCOL: Only medically accurate, evidence-based scenarios
-  const clinicallyValidatedScenarios = [
-    {
-      transcription: "Doctor, I've been experiencing severe chest pain for the past 2 hours. It's a crushing sensation in the center of my chest that radiates to my left arm and jaw. I'm sweating profusely and feel nauseous. The pain is 9 out of 10. I have a history of high blood pressure and take Lisinopril 10mg daily. I'm also diabetic and take Metformin 500mg twice daily.",
-      analysis: {
-        chiefComplaint: "Acute severe chest pain",
-        symptoms: "Central chest pain with radiation, diaphoresis, nausea, crushing sensation",
-        symptomDuration: "2 hours",
-        painLevel: 9,
-        currentMedications: "Lisinopril 10mg daily, Metformin 500mg twice daily",
-        allergies: "None reported",
-        urgencyLevel: "HIGH" as const,
-        suggestedSymptoms: ["Acute myocardial infarction", "Unstable angina", "Acute coronary syndrome"],
-        additionalInfo: "EMERGENCY: Classic presentation of acute MI. Requires immediate emergency care, EKG, cardiac enzymes, and cardiology consultation. Do not delay treatment.",
-        confidence: 0.98,
-        criticalAlerts: ["IMMEDIATE EMERGENCY CARE REQUIRED", "CALL 911 IMMEDIATELY"]
-      }
-    },
-    {
-      transcription: "I've had a persistent cough for 3 weeks with thick green sputum. Yesterday I noticed streaks of blood in what I'm coughing up. I have a fever of 102°F, chills, and severe fatigue. Breathing is difficult and my chest hurts when I cough. I'm a 45-year-old smoker with a 20-pack-year history. No current medications except occasional ibuprofen.",
-      analysis: {
-        chiefComplaint: "Persistent productive cough with hemoptysis",
-        symptoms: "Productive cough, hemoptysis, high fever, chills, dyspnea, pleuritic pain",
-        symptomDuration: "3 weeks, hemoptysis since yesterday",
-        painLevel: 6,
-        currentMedications: "Ibuprofen as needed",
-        allergies: "None reported",
-        urgencyLevel: "HIGH" as const,
-        suggestedSymptoms: ["Bacterial pneumonia", "Lung abscess", "Possible malignancy (given smoking history)"],
-        additionalInfo: "Hemoptysis in smoker with systemic symptoms requires urgent evaluation. Need chest X-ray, CBC, blood cultures, sputum culture. Consider CT chest if X-ray abnormal.",
-        confidence: 0.95,
-        criticalAlerts: ["HEMOPTYSIS REQUIRES URGENT EVALUATION", "SMOKING HISTORY INCREASES CANCER RISK"]
-      }
-    },
-    {
-      transcription: "I've been having severe abdominal pain for 6 hours. It started around my belly button and now it's sharp and intense in my lower right side. Walking makes it much worse. I feel nauseous and vomited twice. My temperature is 101.5°F. The pain is about 8 out of 10. I'm 22 years old, female, and not taking any medications. No known allergies.",
-      analysis: {
-        chiefComplaint: "Acute severe right lower quadrant pain",
-        symptoms: "Periumbilical pain migrating to RLQ, nausea, vomiting, fever, pain with movement",
-        symptomDuration: "6 hours",
-        painLevel: 8,
-        currentMedications: "None",
-        allergies: "No known allergies",
-        urgencyLevel: "HIGH" as const,
-        suggestedSymptoms: ["Acute appendicitis", "Ovarian torsion", "Ectopic pregnancy"],
-        additionalInfo: "Classic appendicitis presentation. Requires immediate surgical evaluation. McBurney's point tenderness, positive Rovsing's sign likely. Need CBC, pregnancy test, CT abdomen.",
-        confidence: 0.94,
-        criticalAlerts: ["SURGICAL EMERGENCY SUSPECTED", "REQUIRES IMMEDIATE HOSPITAL EVALUATION"]
-      }
-    },
-    {
-      transcription: "I've been having headaches for 2 weeks that are getting progressively worse. This morning I had the worst headache of my life - it came on suddenly while I was exercising. I also vomited and my neck feels stiff. The pain is 10 out of 10. I'm sensitive to light and sound. I'm 35 years old and usually healthy, no medications.",
-      analysis: {
-        chiefComplaint: "Sudden severe headache with neck stiffness",
-        symptoms: "Worst headache of life, sudden onset, neck stiffness, photophobia, phonophobia, vomiting",
-        symptomDuration: "Progressive over 2 weeks, acute severe today",
-        painLevel: 10,
-        currentMedications: "None",
-        allergies: "None reported",
-        urgencyLevel: "HIGH" as const,
-        suggestedSymptoms: ["Subarachnoid hemorrhage", "Meningitis", "Increased intracranial pressure"],
-        additionalInfo: "'Thunderclap headache' with meningeal signs is neurological emergency. Requires immediate CT head, lumbar puncture if CT negative. Rule out subarachnoid hemorrhage.",
-        confidence: 0.96,
-        criticalAlerts: ["NEUROLOGICAL EMERGENCY", "THUNDERCLAP HEADACHE - CALL 911"]
-      }
-    },
-    {
-      transcription: "I've noticed a gradual increase in fatigue over the past month. I get short of breath walking up stairs, which never happened before. My ankles are swollen, especially in the evening. I've gained 8 pounds in two weeks without changing my diet. I have a history of heart disease and take Carvedilol 25mg twice daily and Atorvastatin 40mg daily.",
-      analysis: {
-        chiefComplaint: "Progressive dyspnea and weight gain",
-        symptoms: "Exertional dyspnea, bilateral ankle edema, rapid weight gain, fatigue",
-        symptomDuration: "Progressive over 1 month",
-        painLevel: 2,
-        currentMedications: "Carvedilol 25mg twice daily, Atorvastatin 40mg daily",
-        allergies: "None reported",
-        urgencyLevel: "MEDIUM" as const,
-        suggestedSymptoms: ["Congestive heart failure exacerbation", "Fluid retention", "Cardiac decompensation"],
-        additionalInfo: "Classic heart failure symptoms in patient with cardiac history. Requires echocardiogram, BNP, electrolytes, and diuretic therapy consideration. Monitor daily weights.",
-        confidence: 0.92,
-        criticalAlerts: ["HEART FAILURE MONITORING REQUIRED"]
-      }
-    }
-  ]
-  
-  // SAFETY PROTOCOL: Select only clinically validated scenario
-  const validatedScenario = clinicallyValidatedScenarios[Math.floor(Math.random() * clinicallyValidatedScenarios.length)]
-  
-  // MEDICAL ACCURACY VERIFICATION
-  const medicalValidation = {
-    clinicalAccuracy: "Verified by medical protocols",
-    evidenceBase: "Based on standard diagnostic criteria",
-    safetyChecked: "Reviewed for patient safety",
-    urgencyAssessed: "Triage-appropriate urgency level"
-  }
-  
-  return {
-    transcription: validatedScenario.transcription,
-    ...validatedScenario.analysis,
-    processingTime: 3000,
-    aiModel: "Medical-Grade AI Analysis v3.0 (Safety Enhanced)",
-    medicalValidation,
-    disclaimer: "AI analysis for reference only. Professional medical evaluation required for all symptoms."
   }
 }

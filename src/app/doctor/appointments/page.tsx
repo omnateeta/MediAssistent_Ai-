@@ -191,7 +191,14 @@ export default function DoctorAppointmentsPage() {
                   Dashboard
                 </Link>
               </Button>
+              {/* Add Create Appointment button */}
               <Button variant="medical" asChild>
+                <Link href="/doctor/appointments/create">
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Create Appointment
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
                 <Link href="/doctor/patients">
                   <UserGroupIcon className="w-4 h-4 mr-2" />
                   Patient Directory

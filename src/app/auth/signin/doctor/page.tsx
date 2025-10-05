@@ -169,7 +169,7 @@ export default function DoctorSignInPage() {
               loading={isLoading}
               error={error}
               submitLabel="Sign In as Doctor"
-              showGoogleSignIn={false}
+              showGoogleSignIn={true}
               autoFocus={true}
             />
 

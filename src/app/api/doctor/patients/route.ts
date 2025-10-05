@@ -21,6 +21,48 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ patients: [] });
     }
 
+    // Check if we're requesting basic patient list for appointment creation
+    const { searchParams } = new URL(request.url);
+    const basicList = searchParams.get('basic') === 'true';
+
+    if (basicList) {
+      // Return simplified patient list for appointment creation
+      const appointments = await prisma.appointment.findMany({
+        where: { doctorId: doctorProfile.id },
+        include: {
+          patient: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: { scheduledDate: 'desc' }
+      });
+
+      // Create unique patient list
+      const uniquePatients = new Map();
+      appointments.forEach((appointment: any) => {
+        const patient = appointment.patient;
+        if (!uniquePatients.has(patient.id)) {
+          uniquePatients.set(patient.id, {
+            id: patient.id,
+            name: patient.user?.name || 'Unknown Patient',
+            email: patient.user?.email || '',
+            dateOfBirth: patient.dateOfBirth || undefined
+          });
+        }
+      });
+
+      const patients = Array.from(uniquePatients.values());
+      return NextResponse.json({ patients });
+    }
+
     // Get all appointments for this doctor with patient data
     const appointments = await prisma.appointment.findMany({
       where: { doctorId: doctorProfile.id },

@@ -37,13 +37,10 @@ export const authOptions: NextAuthOptions = {
   adapter: isPrismaClientReady ? PrismaAdapter(prisma) : undefined,
   secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   providers: [
-    // Temporarily disable Google OAuth due to invalid client secret
-    /*
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    */
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -153,13 +150,10 @@ export const authOptions: NextAuthOptions = {
       return session
     },
     async signIn({ user, account, profile }) {
-      // Only handle credentials login for now (Google OAuth disabled)
       if (account?.provider === "credentials") {
         return true
       }
       
-      // Temporarily disable Google OAuth handling
-      /*
       if (account?.provider === "google") {
         try {
           const existingUser = await prisma.user.findUnique({
@@ -186,7 +180,6 @@ export const authOptions: NextAuthOptions = {
           return false
         }
       }
-      */
 
       return true
     },

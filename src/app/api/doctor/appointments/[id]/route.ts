@@ -10,15 +10,27 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     
+    console.log('Appointment detail API called with ID:', params.id)
+    console.log('Session:', session ? 'Present' : 'Missing')
+
     if (!session?.user) {
+      console.log('Unauthorized: No session or user')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     if (session.user.role !== 'DOCTOR') {
+      console.log('Access denied: User is not a doctor')
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     const appointmentId = params.id
+    console.log('Looking for appointment with ID:', appointmentId)
+    
+    // Validate appointment ID
+    if (!appointmentId || typeof appointmentId !== 'string' || appointmentId.length < 20) {
+      console.log('Invalid appointment ID:', appointmentId)
+      return NextResponse.json({ error: 'Invalid appointment ID' }, { status: 400 })
+    }
 
     // Fetch appointment with all related data
     const appointment = await prisma.appointment.findUnique({
@@ -55,15 +67,37 @@ export async function GET(
     })
 
     if (!appointment) {
+      console.log('Appointment not found in database for ID:', appointmentId)
       return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
     }
+
+    console.log('Found appointment:', {
+      id: appointment.id,
+      doctorId: appointment.doctorId,
+      patientId: appointment.patientId
+    })
 
     // Check if this doctor owns the appointment
     const doctorProfile = await prisma.doctorProfile.findUnique({
       where: { userId: session.user.id }
     })
 
-    if (!doctorProfile || appointment.doctorId !== doctorProfile.id) {
+    console.log('Doctor profile lookup:', {
+      sessionUserId: session.user.id,
+      foundDoctorProfile: !!doctorProfile,
+      doctorProfileId: doctorProfile?.id
+    })
+
+    if (!doctorProfile) {
+      console.log('Access denied: Doctor profile not found for user')
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    if (appointment.doctorId !== doctorProfile.id) {
+      console.log('Access denied: Doctor does not own this appointment', {
+        appointmentDoctorId: appointment.doctorId,
+        doctorProfileId: doctorProfile.id
+      })
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
@@ -165,6 +199,7 @@ export async function GET(
       }))
     }
 
+    console.log('Successfully returning appointment details')
     return NextResponse.json({
       success: true,
       appointment: appointmentDetail

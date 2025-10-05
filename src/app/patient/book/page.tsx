@@ -246,19 +246,21 @@ export default function BookAppointmentPage() {
   const handleVoiceRecording = async () => {
     if (!isRecording) {
       try {
-        // Request microphone permission
+        // Request microphone permission with optimized settings for faster processing
         const stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
-            sampleRate: 44100,
+            sampleRate: 22050, // Reduced sample rate for smaller file size
+            channelCount: 1, // Mono recording
           } 
         })        
         setAudioStream(stream)
         
-        // Create MediaRecorder
+        // Create MediaRecorder with optimized settings
         const recorder = new MediaRecorder(stream, {
-          mimeType: 'audio/webm;codecs=opus'
+          mimeType: 'audio/webm;codecs=opus',
+          audioBitsPerSecond: 16000 // Lower bitrate for faster processing
         })
         
         let audioChunks: Blob[] = []
@@ -303,18 +305,18 @@ export default function BookAppointmentPage() {
         }
         
         setMediaRecorder(recorder)
-        recorder.start(1000) // Collect data every second
+        recorder.start(2000) // Collect data every 2 seconds instead of 1 for better performance
         setIsRecording(true)
         setRecordingDuration(0)
         
-        // Start timer
+        // Start timer with shorter max duration for brief descriptions
         const interval = setInterval(() => {
           setRecordingDuration(prev => {
-            if (prev >= 120) { // Max 2 minutes for better AI analysis
+            if (prev >= 60) { // Max 1 minute for brief descriptions
               clearInterval(interval)
               recorder.stop()
               setIsRecording(false)
-              return 120
+              return 60
             }
             return prev + 1
           })
@@ -339,19 +341,26 @@ export default function BookAppointmentPage() {
     setIsAnalyzing(true)
     
     try {
-      // MEDICAL ACCURACY: Validate audio quality before analysis
-      if (audioBlob.size < 1000) {
-        throw new Error('Recording too short for accurate medical analysis. Please record for at least 5 seconds.')
+      // More lenient validation for brief recordings
+      if (audioBlob.size < 500) {
+        throw new Error('Recording too short. Please record for at least 3 seconds.')
       }
       
       const formData = new FormData()
       formData.append('audio', audioBlob, 'medical-voice-recording.webm')
       
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      
       const response = await fetch('/api/patient/analyze-voice-gemini', {
         method: 'POST',
         body: formData,
-        credentials: 'include'
+        credentials: 'include',
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -367,13 +376,14 @@ export default function BookAppointmentPage() {
       
       const analysis = result.analysis
       
-      // MEDICAL ACCURACY: Validate critical medical fields
-      if (!analysis.transcription || analysis.transcription.length < 10) {
-        throw new Error('Voice transcription too short for reliable medical analysis. Please speak more clearly and provide more details.')
+      // More lenient validation for brief recordings
+      if (!analysis.transcription || analysis.transcription.length < 5) {
+        throw new Error('Voice transcription too short. Please speak more clearly and provide more details.')
       }
       
-      // MEDICAL VALIDATION: Check confidence level
-      const confidenceThreshold = 0.75
+      // MEDICAL VALIDATION: Check confidence level with adaptive threshold
+      // Lower threshold for brief recordings to still provide value
+      const confidenceThreshold = analysis.transcription.length < 50 ? 0.6 : 0.75
       const isHighConfidence = analysis.confidence >= confidenceThreshold
       
       if (!isHighConfidence) {
@@ -404,57 +414,61 @@ Please seek immediate medical attention if these symptoms apply to you.`)
         disclaimer: result.disclaimer || 'AI analysis for reference only. Professional medical evaluation required.'
       })
       
-      // MEDICAL ACCURACY: Only auto-fill if confidence meets medical standards
+      // MEDICAL ACCURACY: Auto-fill even with lower confidence for brief recordings
+      // but indicate to user that review is recommended
+      setFormData(prev => ({
+        ...prev,
+        chiefComplaint: analysis.chiefComplaint || prev.chiefComplaint,
+        symptoms: analysis.symptoms || prev.symptoms,
+        symptomDuration: analysis.symptomDuration || prev.symptomDuration,
+        painLevel: (analysis.painLevel >= 1 && analysis.painLevel <= 10) ? analysis.painLevel : prev.painLevel,
+        allergies: analysis.allergies || prev.allergies,
+        currentMedications: analysis.currentMedications || prev.currentMedications,
+        voiceNote: analysis.transcription // Store full medical transcription
+      }))
+      
+      // Provide feedback based on confidence level
       if (isHighConfidence) {
-        // High confidence - auto-fill with medical validation
-        setFormData(prev => ({
-          ...prev,
-          chiefComplaint: analysis.chiefComplaint && analysis.chiefComplaint.length > 3 ? analysis.chiefComplaint : prev.chiefComplaint,
-          symptoms: analysis.symptoms && analysis.symptoms.length > 10 ? analysis.symptoms : prev.symptoms,
-          symptomDuration: analysis.symptomDuration || prev.symptomDuration,
-          painLevel: (analysis.painLevel >= 1 && analysis.painLevel <= 10) ? analysis.painLevel : prev.painLevel,
-          allergies: (analysis.allergies && analysis.allergies !== 'None reported' && analysis.allergies !== 'None mentioned') ? analysis.allergies : prev.allergies,
-          currentMedications: (analysis.currentMedications && analysis.currentMedications !== 'None currently' && analysis.currentMedications !== 'None mentioned') ? analysis.currentMedications : prev.currentMedications,
-          voiceNote: analysis.transcription // Store full medical transcription
-        }))
-        
-        console.log('✅ HIGH-CONFIDENCE MEDICAL ANALYSIS COMPLETE:', {
+        console.log('✅ MEDICAL ANALYSIS COMPLETE:', {
           provider: result.provider,
           confidence: analysis.confidence,
           urgency: analysis.urgencyLevel,
           medicalValidation: result.medicalValidation
         })
       } else {
-        // Low confidence - store transcription only, require manual review
-        setFormData(prev => ({
-          ...prev,
-          voiceNote: analysis.transcription
-        }))
-        
-        console.warn('⚠️ LOW-CONFIDENCE ANALYSIS - MANUAL REVIEW REQUIRED:', {
+        console.warn('⚠️ LOW-CONFIDENCE ANALYSIS PROVIDED:', {
           confidence: analysis.confidence,
           transcription: analysis.transcription.slice(0, 100) + '...'
         })
         
-        alert(`⚠️ Medical AI Analysis - Low Confidence
+        // Notify user about low confidence but still useful results
+        alert(`ℹ️ Brief Description Generated
 
 Confidence: ${Math.round(analysis.confidence * 100)}%
 
-The AI analysis has low confidence. Please review the transcription and fill the form manually for accuracy.
-
-This is to ensure the highest medical accuracy standards.`)
+The AI has generated a brief description from your recording. Please review and edit the information in the form fields as needed.`)
       }
       
     } catch (error) {
       console.error('🚨 MEDICAL AI ANALYSIS ERROR:', error)
       
-      // Medical-grade error handling
-      const errorMessage = error instanceof Error ? error.message : 'Unknown medical analysis error'
-      alert(`❌ Medical Voice Analysis Failed
+      // Handle timeout specifically
+      if (error.name === 'AbortError') {
+        alert(`⏱️ Analysis Timeout
+
+The voice analysis is taking longer than expected. Please try:
+1. Speaking more clearly in a quiet environment
+2. Providing a slightly longer description
+3. Trying again in a moment`)
+      } else {
+        // Medical-grade error handling
+        const errorMessage = error instanceof Error ? error.message : 'Unknown medical analysis error'
+        alert(`❌ Medical Voice Analysis Failed
 
 ${errorMessage}
 
-For your safety, please fill the medical form manually or try recording again with clearer speech.`)
+Please fill the medical form manually or try recording again with clearer speech.`)
+      }
       
       // Clear any partial analysis results to prevent confusion
       setAnalysisResult(null)
@@ -726,12 +740,19 @@ For your safety, please fill the medical form manually or try recording again wi
                       }))
                     }}
                   >
-                    <SelectTrigger className="h-12">
+                    <SelectTrigger className="h-12 specialization-select-trigger">
                       <SelectValue placeholder={loadingSpecializations ? "Loading specializations..." : "Choose a medical specialization"} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent 
+                      className="specialization-select-content" 
+                      side="bottom" 
+                      align="start" 
+                      sideOffset={4} 
+                      avoidCollisions={false}
+                      position="popper"
+                    >
                       {specializations.map((spec) => (
-                        <SelectItem key={spec} value={spec} className="py-3">
+                        <SelectItem key={spec} value={spec} className="specialization-select-item py-3">
                           <div className="flex items-center">
                             <span className="mr-2">🩺</span>
                             {spec}
@@ -774,7 +795,7 @@ For your safety, please fill the medical form manually or try recording again wi
                           }}
                           disabled={loadingDoctors}
                         >
-                          <SelectTrigger className="h-auto min-h-[60px] p-4 border-2 hover:border-blue-300 focus:border-blue-500 font-bold">
+                          <SelectTrigger className="h-auto min-h-[60px] p-4 border-2 hover:border-blue-300 focus:border-blue-500 font-bold doctor-select-trigger">
                             <SelectValue placeholder="👨‍⚕️ Choose your doctor" className="font-bold">
                               {formData.doctorId && (
                                 <div className="flex justify-between items-center w-full">
@@ -800,7 +821,7 @@ For your safety, please fill the medical form manually or try recording again wi
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent 
-                            className="max-h-[400px] w-full z-[1000] bg-gray-50 p-3 shadow-xl border-2 border-gray-200"
+                            className="max-h-[400px] w-full z-[1000] p-3 shadow-xl border-2 border-gray-200 doctor-select-content"
                             side="bottom"
                             align="start"
                             sideOffset={4}
@@ -810,7 +831,7 @@ For your safety, please fill the medical form manually or try recording again wi
                               <SelectItem 
                                 key={doctor.id} 
                                 value={doctor.id}
-                                className="p-0 h-auto cursor-pointer focus:bg-transparent hover:bg-transparent data-[highlighted]:bg-transparent mb-3"
+                                className="p-0 h-auto cursor-pointer focus:bg-transparent hover:bg-transparent data-[highlighted]:bg-transparent mb-3 doctor-select-item"
                               >
                                 <div className="w-full p-5 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-lg transition-all duration-300 bg-white shadow-sm">
                                   <div className="flex justify-between items-start w-full">

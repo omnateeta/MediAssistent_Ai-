@@ -62,7 +62,7 @@ export default function AppointmentDetailPage() {
   const router = useRouter()
   const params = useParams()
   const appointmentId = params.id as string
-  
+
   const [appointment, setAppointment] = useState<AppointmentDetail | null>(null)
   const [notes, setNotes] = useState("")
   const [diagnosis, setDiagnosis] = useState("")
@@ -85,16 +85,26 @@ export default function AppointmentDetailPage() {
   // Fetch appointment data from API
   useEffect(() => {
     const fetchAppointmentDetails = async () => {
-      if (!appointmentId) return
+      // Validate appointment ID
+      if (!appointmentId) {
+        router.push('/doctor/appointments')
+        return
+      }
+      
+      // Basic validation of appointment ID format
+      if (typeof appointmentId !== 'string' || appointmentId.length < 20) {
+        router.push('/doctor/appointments')
+        return
+      }
       
       try {
-        const res = await fetch(`/api/doctor/appointments/${appointmentId}`, {
+        const res = await fetch(`/api/doctor/appointments/${encodeURIComponent(appointmentId)}`, {
           credentials: 'include'
         })
         
         if (!res.ok) {
           if (res.status === 404) {
-            console.error('Appointment not found')
+            // Redirect to appointments page
             router.push('/doctor/appointments')
             return
           }
@@ -114,11 +124,12 @@ export default function AppointmentDetailPage() {
             ).join('\n') : ''
           )
         } else {
-          throw new Error('Invalid response format')
+          // Redirect to appointments page on invalid response
+          router.push('/doctor/appointments')
         }
       } catch (error) {
-        console.error('Error fetching appointment details:', error)
-        // Could show an error message to user here
+        // Redirect to appointments page on error
+        router.push('/doctor/appointments')
       }
     }
 

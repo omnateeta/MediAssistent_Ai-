@@ -120,6 +120,9 @@ export default function PatientAppointmentsPage() {
   }, [])
 
   const filteredAppointments = appointments.filter(appointment => {
+    // Exclude cancelled appointments entirely as per requirements
+    if (appointment.status === "CANCELLED") return false;
+    
     const matchesSearch = 
       appointment.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       appointment.referenceId.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -129,8 +132,7 @@ export default function PatientAppointmentsPage() {
     const matchesFilter = 
       selectedFilter === "all" ||
       (selectedFilter === "upcoming" && ["SCHEDULED", "CONFIRMED"].includes(appointment.status)) ||
-      (selectedFilter === "completed" && appointment.status === "COMPLETED") ||
-      (selectedFilter === "cancelled" && appointment.status === "CANCELLED")
+      (selectedFilter === "completed" && appointment.status === "COMPLETED")
     
     return matchesSearch && matchesFilter
   })
@@ -271,11 +273,9 @@ export default function PatientAppointmentsPage() {
                 />
               </div>
               <div className="flex gap-2">
-                {[
-                  { key: "all", label: "All" },
+                {[{ key: "all", label: "All" },
                   { key: "upcoming", label: "Upcoming" },
-                  { key: "completed", label: "Completed" },
-                  { key: "cancelled", label: "Cancelled" }
+                  { key: "completed", label: "Completed" }
                 ].map((filter) => (
                   <Button
                     key={filter.key}

@@ -87,10 +87,15 @@ export function addMockUser(userData: {
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "dummy",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "dummy",
-    }),
+    // Only enable Google OAuth if credentials are provided
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET 
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          })
+        ]
+      : []),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -156,7 +161,21 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       // Handle OAuth sign-in
       if (account?.provider === "google") {
-        // For demo purposes, create a mock patient account
+        // Check if user already exists in mock database
+        const existingUser = mockUsers.find(u => u.email === user.email)
+        
+        if (!existingUser) {
+          // Create new mock user with PATIENT role by default
+          const newUser = {
+            id: `google_${Date.now()}`,
+            email: user.email!,
+            name: user.name!,
+            password: "", // No password for OAuth users
+            role: "PATIENT",
+            isActive: true
+          }
+          mockUsers.push(newUser)
+        }
         return true
       }
       return true

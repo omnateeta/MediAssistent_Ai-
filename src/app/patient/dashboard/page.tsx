@@ -86,19 +86,52 @@ export default function PatientDashboardPage() {
         
         if (res.status === 401) {
           // Not authenticated - send to sign in with callback so user returns here after login
+          console.log('Dashboard: User not authenticated, redirecting to sign in')
           const cb = encodeURIComponent(window.location.pathname + window.location.search)
           router.push(`/auth/signin/patient?callbackUrl=${cb}`)
           return
         }
         
         if (!res.ok) {
-          const errorData = await res.text()
           console.error('Dashboard API error:', {
             status: res.status,
             statusText: res.statusText,
-            body: errorData
+            url: res.url
           })
-          throw new Error(`Failed to fetch dashboard data: ${res.status} ${res.statusText}`)
+          
+          // Try to get error details from response
+          let errorDetails = ''
+          try {
+            const errorData = await res.json()
+            errorDetails = errorData?.message || errorData?.error || JSON.stringify(errorData)
+            console.error('Dashboard API error details:', errorDetails)
+          } catch (parseError) {
+            // If JSON parsing fails, try to get text
+            try {
+              const errorText = await res.text()
+              errorDetails = errorText || 'No error details available'
+              console.error('Dashboard API error text:', errorText)
+            } catch (textError) {
+              errorDetails = 'Unable to retrieve error details'
+              console.error('Dashboard API text error:', textError)
+            }
+          }
+          
+          // Show user-friendly error message
+          if (mounted) {
+            // Still update UI with fallback data instead of breaking
+            setDashboardStats({
+              totalAppointments: 0,
+              upcomingAppointments: 0,
+              completedAppointments: 0,
+              activePrescriptions: 0
+            })
+            setUpcomingAppointments([])
+            setRecentActivity([])
+          }
+          
+          console.error('Dashboard API error details:', errorDetails)
+          return
         }
         
         const data = await res.json()
@@ -107,6 +140,17 @@ export default function PatientDashboardPage() {
           setDashboardStats(data.data.stats)
           setUpcomingAppointments(data.data.upcomingAppointments || [])
           setRecentActivity(data.data.recentActivity || [])
+        } else if (mounted) {
+          // Handle API success but no data case
+          console.warn('Dashboard API returned success but no data:', data)
+          setDashboardStats({
+            totalAppointments: 0,
+            upcomingAppointments: 0,
+            completedAppointments: 0,
+            activePrescriptions: 0
+          })
+          setUpcomingAppointments([])
+          setRecentActivity([])
         }
       } catch (err) {
         console.error('Error fetching dashboard data:', err)

@@ -6,7 +6,7 @@ A comprehensive, AI-powered medical platform designed for hospitals and clinics 
 
 MediAssist AI revolutionizes healthcare delivery by combining cutting-edge artificial intelligence with intuitive user experience design. The platform serves both patients and healthcare providers with secure, HIPAA-compliant tools for modern medical practice.
 
-### Key Features
+### Key Features 
 
 - **🤖 AI-Powered Diagnostics**: Advanced NLP analysis of patient symptoms
 - **🎤 Voice Recognition**: Speech-to-text conversion for natural symptom description

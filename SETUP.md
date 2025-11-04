@@ -3,7 +3,7 @@
 This guide will help you set up the MediAssist AI platform for development.
 
 ## 🚀 Quick Start
-
+  
 ### 1. Prerequisites
 
 Ensure you have the following installed:

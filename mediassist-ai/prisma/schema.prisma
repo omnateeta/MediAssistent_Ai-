@@ -1,0 +1,473 @@
+// MediAssist AI - Comprehensive Medical Platform Database Schema
+// HIPAA-compliant, secure, and scalable design
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management & Authentication
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  password      String?   // For credentials login
+  role          UserRole  @default(PATIENT)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Authentication
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Role-specific profiles
+  patientProfile PatientProfile?
+  doctorProfile  DoctorProfile?
+  
+  // Activity logs for security
+  auditLogs     AuditLog[]
+  
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+// Patient Profile & Medical Information
+model PatientProfile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  dateOfBirth     DateTime?
+  gender          Gender?
+  phoneNumber     String?
+  emergencyContact String?
+  bloodType       BloodType?
+  height          Float?    // in cm
+  weight          Float?    // in kg
+  
+  // Medical History
+  allergies       String[]  // Array of allergy descriptions
+  chronicConditions String[] // Array of chronic conditions
+  currentMedications String[] // Current medications
+  
+  // Insurance & Billing
+  insuranceProvider String?
+  insuranceNumber   String?
+  
+  // Address
+  address         String?
+  city            String?
+  state           String?
+  zipCode         String?
+  country         String?   @default("US")
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments    Appointment[]
+  medicalRecords  MedicalRecord[]
+  medicalDocuments MedicalDocument[]
+  
+  @@map("patient_profiles")
+}
+
+// Medical Documents uploaded by patients
+model MedicalDocument {
+  id            String    @id @default(cuid())
+  patientId     String
+  appointmentId String?   // Optional - document may not be tied to specific appointment
+  
+  fileName      String
+  filePath      String    // Local file path
+  fileSize      Int       // Size in bytes
+  mimeType      String    // MIME type of the file
+  
+  // Metadata
+  description   String?   // Optional description from patient
+  category      DocumentCategory? // Type of medical document
+  
+  uploadedAt    DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  
+  @@map("medical_documents")
+}
+
+model DoctorProfile {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  licenseNumber     String    @unique
+  specialization    String[]  // Array of specializations
+  yearsOfExperience Int?
+  hospitalAffiliation String?
+  consultationFee   Float?
+  
+  // Professional Details
+  qualifications    String[]  // Array of degrees/certifications
+  languagesSpoken   String[]  // Array of language codes
+  
+  // Availability
+  workingHours      Json?     // Flexible JSON structure for complex schedules
+  isAvailable       Boolean   @default(true)
+  
+  // Verification
+  isVerified        Boolean   @default(false)
+  verificationDate  DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments      Appointment[]
+  prescriptions     Prescription[]
+  aiSummaryReviews  AISummaryReview[]
+  
+  @@map("doctor_profiles")
+}
+
+// Appointment Management
+model Appointment {
+  id                String            @id @default(cuid())
+  referenceId       String            @unique @default(cuid()) // Unique reference for patients
+  
+  patientId         String
+  doctorId          String
+  
+  scheduledDate     DateTime
+  duration          Int               @default(30) // Duration in minutes
+  status            AppointmentStatus @default(SCHEDULED)
+  type              AppointmentType   @default(CONSULTATION)
+  
+  // Patient Input Data
+  chiefComplaint    String?           // Main reason for visit
+  symptoms          Json?             // Structured symptom data
+  symptomDuration   String?
+  painLevel         Int?              // 1-10 scale
+  
+  // Voice Input
+  patientVoiceNote  String?           // Transcribed voice note
+  patientVoiceUrl   String?           // Audio file URL
+  
+  // Doctor's In-Person Voice Note (New Feature)
+  doctorVoiceNote   String?           // Transcribed doctor's voice note
+  doctorVoiceUrl    String?           // Audio file URL
+  voiceComparison   Json?             // AI comparison results
+  
+  // File Uploads
+  uploadedFiles     AppointmentFile[]
+  medicalDocuments  MedicalDocument[]
+  
+  // AI Analysis
+  aiSummary         AISummary?
+  
+  // Final Prescription
+  prescription      Prescription?
+  
+  // Notes
+  doctorNotes       String?
+  patientNotes      String?
+  
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  patient           PatientProfile    @relation(fields: [patientId], references: [id])
+  doctor            DoctorProfile     @relation(fields: [doctorId], references: [id])
+  
+  @@map("appointments")
+}
+
+model AppointmentFile {
+  id            String      @id @default(cuid())
+  appointmentId String
+  fileName      String
+  fileUrl       String
+  fileType      FileType
+  fileSize      Int         // Size in bytes
+  uploadedAt    DateTime    @default(now())
+  
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  
+  @@map("appointment_files")
+}
+
+// AI Analysis & Summary
+model AISummary {
+  id                    String    @id @default(cuid())
+  appointmentId         String    @unique
+  
+  // AI Generated Content
+  symptomsList          String[]  // Extracted symptoms
+  possibleConditions    String[]  // Potential diagnoses
+  suggestedTests        String[]  // Recommended tests/scans
+  preliminaryTreatment  String?   // Initial treatment suggestions
+  dietRecommendations   String?   // Dietary advice
+  
+  // Risk Assessment
+  urgencyLevel          UrgencyLevel @default(LOW)
+  riskFactors           String[]  // Identified risk factors
+  
+  // AI Confidence Scores
+  confidenceScore       Float?    // 0-1 confidence in analysis
+  
+  // Processing Metadata
+  aiModel               String?   // Which AI model was used
+  processingTime        Int?      // Time taken in milliseconds
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  appointment           Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  reviews               AISummaryReview[]
+  
+  @@map("ai_summaries")
+}
+
+model AISummaryReview {
+  id              String    @id @default(cuid())
+  aiSummaryId     String
+  doctorId        String
+  
+  // Doctor's Review
+  isApproved      Boolean   @default(false)
+  modifications   Json?     // Doctor's changes to AI summary
+  doctorComments  String?
+  
+  // Final Decision
+  finalDiagnosis  String?
+  finalTreatment  String?
+  
+  reviewedAt      DateTime  @default(now())
+  
+  aiSummary       AISummary     @relation(fields: [aiSummaryId], references: [id])
+  doctor          DoctorProfile @relation(fields: [doctorId], references: [id])
+  
+  @@map("ai_summary_reviews")
+}
+
+// Prescription Management
+model Prescription {
+  id              String    @id @default(cuid())
+  appointmentId   String    @unique
+  doctorId        String
+  
+  // Prescription Details
+  medications     PrescriptionMedication[]
+  instructions    String?
+  duration        String?   // e.g., "7 days", "2 weeks"
+  
+  // Digital Signature
+  digitalSignature String?
+  signedAt        DateTime?
+  
+  // Status
+  status          PrescriptionStatus @default(DRAFT)
+  issuedAt        DateTime?
+  
+  // Patient Access
+  patientCanView  Boolean   @default(false)
+  sharedVia       String[]  // email, sms, portal
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  appointment     Appointment   @relation(fields: [appointmentId], references: [id])
+  doctor          DoctorProfile @relation(fields: [doctorId], references: [id])
+  
+  @@map("prescriptions")
+}
+
+model PrescriptionMedication {
+  id             String @id @default(cuid())
+  prescriptionId String
+  
+  medicationName String
+  dosage         String  // e.g., "500mg"
+  frequency      String  // e.g., "twice daily"
+  instructions   String? // Special instructions
+  
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  
+  @@map("prescription_medications")
+}
+
+// Medical Records & History
+model MedicalRecord {
+  id          String    @id @default(cuid())
+  patientId   String
+  
+  recordType  RecordType
+  title       String
+  description String?
+  recordData  Json?     // Flexible data structure
+  
+  // File attachments
+  attachments String[]  // Array of file URLs
+  
+  // Metadata
+  recordDate  DateTime  @default(now())
+  createdBy   String?   // User ID who created the record
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  patient     PatientProfile @relation(fields: [patientId], references: [id])
+  
+  @@map("medical_records")
+}
+
+// Security & Audit
+model AuditLog {
+  id          String    @id @default(cuid())
+  userId      String
+  action      String    // Action performed
+  resource    String    // Resource accessed
+  details     Json?     // Additional details
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime  @default(now())
+  
+  user        User      @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+}
+
+// Enums
+enum UserRole {
+  PATIENT
+  DOCTOR
+  ADMIN
+  NURSE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum BloodType {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum AppointmentType {
+  CONSULTATION
+  FOLLOW_UP
+  EMERGENCY
+  TELEMEDICINE
+  ROUTINE_CHECKUP
+}
+
+enum FileType {
+  IMAGE
+  PDF
+  DOCUMENT
+  AUDIO
+  VIDEO
+  LAB_REPORT
+  XRAY
+  MRI
+  CT_SCAN
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  ISSUED
+  DISPENSED
+  COMPLETED
+  CANCELLED
+}
+
+enum RecordType {
+  DIAGNOSIS
+  TREATMENT
+  LAB_RESULT
+  IMAGING
+  VACCINATION
+  ALLERGY
+  SURGERY
+  MEDICATION_HISTORY
+}
+
+enum DocumentCategory {
+  LAB_REPORT
+  MEDICAL_HISTORY
+  PRESCRIPTION
+  IMAGING_SCAN
+  INSURANCE_DOCUMENT
+  REFERRAL_LETTER
+  DISCHARGE_SUMMARY
+  VACCINATION_RECORD
+  OTHER
+}

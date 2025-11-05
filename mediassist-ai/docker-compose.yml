@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mediassist-postgres
+    environment:
+      POSTGRES_DB: mediassist_ai
+      POSTGRES_USER: mediassist
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - mediassist-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mediassist -d mediassist_ai"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: mediassist-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mediassist-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MediAssist AI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mediassist-app
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://mediassist:${DB_PASSWORD:-secure_password}@postgres:5432/mediassist_ai?schema=public
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_URL=${APP_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mediassist-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: mediassist-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    networks:
+      - mediassist-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  mediassist-network:
+    driver: bridge

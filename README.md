@@ -2,7 +2,7 @@
   
 A comprehensive, AI-powered medical platform designed for hospitals and clinics to automate patient intake, generate intelligent medical summaries, and streamline digital prescription management.
    
-## 🏥 Overview     
+## 🏥 Overview      
  
 MediAssist AI revolutionizes healthcare delivery by combining cutting-edge artificial intelligence with intuitive user experience design. The platform serves both patients and healthcare providers with secure, HIPAA-compliant tools for modern medical practice.
 

@@ -66,16 +66,16 @@ export default function HomePage() {
       className="min-h-screen relative"
       style={{
         backgroundImage: 'url(/backgroundimg.jpg)',
-        backgroundSize: 'contain',
-        backgroundPosition: 'top center',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'scroll',
+        backgroundAttachment: 'fixed',
         minHeight: '100vh',
-        width: '100vw',
+        width: '100%',
       }}
     >
-      {/* Overlay for light effect */}
-      <div className="absolute inset-0 bg-white/40 pointer-events-none z-0" />
+      {/* Overlay for readability */}
+      <div className="absolute inset-0 bg-white/70 dark:bg-black/50 pointer-events-none z-0" />
       <div className="relative z-10">
         {/* Hero Section */}
         <section className="relative overflow-hidden py-20 sm:py-32">

@@ -1,22 +1,34 @@
 import NextAuth from "next-auth"
+import { isPrismaClientReady } from "@/lib/prisma"
 
-// Ensure Prisma runs in the Node.js runtime, not Edge
-export const runtime = 'nodejs'
+console.log('[Auth Route] Environment check:')
+console.log('[Auth Route] isPrismaClientReady:', isPrismaClientReady)
+console.log('[Auth Route] DATABASE_URL exists:', !!process.env.DATABASE_URL)
+console.log('[Auth Route] USE_TEMP_AUTH:', process.env.USE_TEMP_AUTH)
+console.log('[Auth Route] NODE_ENV:', process.env.NODE_ENV)
 
-// Try to use the real Prisma-backed auth options. If Prisma client hasn't been
-// generated in this environment (common during local setup), fall back to the
-// temporary in-memory auth options so sign-in UI remains functional for testing.
 let authOptions: any
 
 // Decide whether to use temporary auth based on environment flags
-const shouldUseTempAuth = !process.env.DATABASE_URL || process.env.USE_TEMP_AUTH === '1'
+const shouldUseTempAuth =
+	isPrismaClientReady === false ||
+	!process.env.DATABASE_URL ||
+	process.env.USE_TEMP_AUTH === '1'
+
+console.log('[Auth Route] shouldUseTempAuth:', shouldUseTempAuth)
 
 if (shouldUseTempAuth) {
-	console.warn('[Auth Route] Using temporary in-memory auth (DATABASE_URL missing or USE_TEMP_AUTH=1)')
+	const reason = !isPrismaClientReady
+		? 'Prisma client not generated or failed to load'
+		: !process.env.DATABASE_URL
+			? 'DATABASE_URL missing'
+			: 'USE_TEMP_AUTH=1 override'
+	console.warn(`[Auth Route] Using temporary in-memory auth (${reason})`)
 	// eslint-disable-next-line @typescript-eslint/no-var-requires
 	const temp = require('@/lib/auth-temp')
 	authOptions = temp.authOptions
 } else {
+	console.log('[Auth Route] Using real database-backed auth')
 	try {
 		// Use require to avoid module-eval problems at import time
 		// eslint-disable-next-line @typescript-eslint/no-var-requires

@@ -50,15 +50,20 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          console.log('[NextAuth][Credentials] Starting authorization for email:', credentials?.email)
+          console.log('[NextAuth][Credentials] Starting authorization')
+          console.log('[NextAuth][Credentials] Received credentials:', credentials)
           
           if (!credentials?.email || !credentials?.password) {
             console.warn('[NextAuth][Credentials] Missing credentials for authorize()')
             throw new Error('Missing credentials')
           }
+          
+          // Normalize email
+          const normalizedEmail = credentials.email.toLowerCase().trim()
+          console.log('[NextAuth][Credentials] Normalized email:', normalizedEmail)
 
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+            where: { email: normalizedEmail },
             include: {
               patientProfile: true,
               doctorProfile: true,
@@ -66,7 +71,7 @@ export const authOptions: NextAuthOptions = {
           })
 
           if (!user) {
-            console.warn(`[NextAuth][Credentials] authorize() user not found for email=${credentials.email}`)
+            console.warn(`[NextAuth][Credentials] authorize() user not found for email=${normalizedEmail}`)
             throw new Error('User not found')
           }
 
@@ -83,7 +88,7 @@ export const authOptions: NextAuthOptions = {
 
           // If the client requested a specific role, enforce it here
           if (credentials.role && user.role && credentials.role !== user.role) {
-            console.warn(`[NextAuth][Credentials] authorize() role mismatch requested=${credentials.role} stored=${user.role} for email=${credentials.email}`)
+            console.warn(`[NextAuth][Credentials] authorize() role mismatch requested=${credentials.role} stored=${user.role} for email=${normalizedEmail}`)
             throw new Error(`Role mismatch: this account is registered as ${user.role}`)
           }
 

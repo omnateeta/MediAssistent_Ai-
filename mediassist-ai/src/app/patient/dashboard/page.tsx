@@ -398,6 +398,12 @@ export default function PatientDashboardPage() {
                     Medical Records
                   </Link>
                 </Button>
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/patient/remedies">
+                    <HeartIcon className="w-4 h-4 mr-2" />
+                    Home Remedies
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
 
@@ -469,6 +475,61 @@ export default function PatientDashboardPage() {
                   <div className="p-3 bg-purple-50 rounded-lg">
                     <p className="font-medium text-purple-900">Quality Sleep</p>
                     <p className="text-purple-700">Get 7-9 hours of quality sleep each night for better health.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Home Remedies */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <HeartIcon className="w-5 h-5 mr-2 text-green-500" />
+                  Home Remedies
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="border-l-4 border-blue-500 pl-3">
+                    <h4 className="font-medium text-gray-900">Common Cold</h4>
+                    <ul className="mt-1 text-sm text-gray-600 list-disc list-inside space-y-1">
+                      <li>Ginger tea with honey for sore throat</li>
+                      <li>Steam inhalation to relieve congestion</li>
+                      <li>Chicken soup for hydration and nutrients</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="border-l-4 border-green-500 pl-3">
+                    <h4 className="font-medium text-gray-900">Headache Relief</h4>
+                    <ul className="mt-1 text-sm text-gray-600 list-disc list-inside space-y-1">
+                      <li>Cold compress on forehead/temples</li>
+                      <li>Peppermint oil massage on temples</li>
+                      <li>Dark room rest with deep breathing</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="border-l-4 border-yellow-500 pl-3">
+                    <h4 className="font-medium text-gray-900">Digestive Issues</h4>
+                    <ul className="mt-1 text-sm text-gray-600 list-disc list-inside space-y-1">
+                      <li>Ginger tea for nausea</li>
+                      <li>BRAT diet (Bananas, Rice, Applesauce, Toast)</li>
+                      <li>Probiotics from yogurt or supplements</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="border-l-4 border-purple-500 pl-3">
+                    <h4 className="font-medium text-gray-900">General Wellness</h4>
+                    <ul className="mt-1 text-sm text-gray-600 list-disc list-inside space-y-1">
+                      <li>Turmeric milk for inflammation</li>
+                      <li>Eucalyptus oil for respiratory comfort</li>
+                      <li>Warm salt water gargle for throat irritation</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <p className="text-xs text-gray-500 italic">
+                      ⚠️ These remedies are for temporary relief only. Consult your healthcare provider for persistent symptoms.
+                    </p>
                   </div>
                 </div>
               </CardContent>

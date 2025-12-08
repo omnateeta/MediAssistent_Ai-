@@ -1,6 +1,6 @@
 # MediAssist AI - Personalized Medical Diagnostics Platform    
   
-A comprehensive, AI-powered medical platform designed for hospitals and clinics to automate patient intake, generate intelligent medical summaries, and streamline digital prescription management.
+A comprehensive, AI-powered medical platform designed for hospitals and clinics to automate patient intake, generate intelligent medical summaries, and streamline digital prescription management.  
    
 ## 🏥 Overview      
  

@@ -21,8 +21,14 @@ export async function POST(req: NextRequest) {
 
     if (!process.env.GEMINI_API_KEY) {
       console.error('🚨 CRITICAL: Gemini API key not configured for medical analysis')
-      return NextResponse.json({ error: 'Medical AI service configuration error' }, { status: 500 })
+      return NextResponse.json({ 
+        error: 'Medical AI service configuration error',
+        details: 'API key missing from environment configuration'
+      }, { status: 500 })
     }
+
+    console.log('🔑 Using Gemini API Key:', process.env.GEMINI_API_KEY.substring(0, 10) + '...')
+    console.log('🌐 API Key Length:', process.env.GEMINI_API_KEY.length)
 
     const formData = await req.formData()
     const audioFile = formData.get('audio') as Blob
@@ -54,8 +60,11 @@ export async function POST(req: NextRequest) {
     // Convert audio blob to base64 for Gemini AI
     const arrayBuffer = await audioFile.arrayBuffer()
     const audioBase64 = Buffer.from(arrayBuffer).toString('base64')
+    
+    console.log('🔤 Audio converted to base64 - Length:', audioBase64.length)
 
     // Initialize Gemini model
+    console.log('🚀 Initializing Gemini model: gemini-2.0-flash')
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
 
     // OPTIMIZED MEDICAL AI PROMPT - Designed for Fast, Accurate Brief Descriptions
@@ -112,6 +121,7 @@ EXAMPLE OUTPUT:
       console.log('🤖 Initializing medical-grade AI analysis...')
       
       // Generate content using Gemini AI with the audio file
+      console.log('📤 Sending request to Gemini API...')
       const result = await model.generateContent([
         medicalPrompt,
         {
@@ -122,10 +132,12 @@ EXAMPLE OUTPUT:
         }
       ])
       
+      console.log('📥 Received response from Gemini API')
       const response = await result.response
       const text = await response.text()
       
-      console.log('🤖 Raw AI response:', text)
+      console.log('🤖 Raw AI response length:', text.length)
+      console.log('🤖 Raw AI response (first 500 chars):', text.substring(0, 500))
       
       // Parse the JSON response from AI
       let medicalAnalysis
@@ -139,7 +151,8 @@ EXAMPLE OUTPUT:
         }
       } catch (parseError) {
         console.error('❌ Failed to parse AI JSON response:', parseError)
-        throw new Error('Invalid AI response format')
+        console.error('Raw response that failed to parse:', text)
+        throw new Error('Invalid AI response format: ' + text.substring(0, 200))
       }
       
       // MEDICAL VALIDATION: Verify analysis meets medical standards
@@ -147,7 +160,7 @@ EXAMPLE OUTPUT:
       
       if (!validationResult.isValid) {
         console.error('❌ Medical analysis validation failed:', validationResult.errors)
-        throw new Error('Medical analysis did not meet safety standards')
+        throw new Error('Medical analysis did not meet safety standards: ' + validationResult.errors.join(', '))
       }
       
       console.log('✅ Medical analysis validation passed - Confidence:', medicalAnalysis.confidence)
@@ -172,16 +185,58 @@ EXAMPLE OUTPUT:
         disclaimer: 'AI analysis for reference only. Professional medical evaluation required for all symptoms. This analysis should not replace professional medical advice.'
       })
 
-    } catch (aiError) {
+    } catch (aiError: any) {
       console.error('🚨 Medical AI analysis error:', aiError)
       
-      // MEDICAL SAFETY: Provide safe fallback response
+      // Handle quota exceeded error specifically
+      if (aiError?.status === 429 || (aiError?.message && aiError.message.includes('quota'))) {
+        console.log('🔄 QUOTA EXCEEDED - Switching to fallback mode')
+        return NextResponse.json({
+          success: false,
+          error: 'Rate limit exceeded',
+          message: 'AI service temporarily unavailable due to usage limits. Please fill the medical form manually.',
+          fallbackAdvice: 'For your safety, please describe your symptoms clearly in the form fields.',
+          code: 'QUOTA_EXCEEDED',
+          isFallback: true,
+          quotaInfo: {
+            detail: 'You have exceeded your free tier quota for the Gemini API',
+            suggestion: 'Consider upgrading to a paid plan or wait until your quota resets',
+            link: 'https://ai.google.dev/gemini-api/docs/rate-limits'
+          }
+        }, { status: 429 })
+      }
+      
+      // Handle API key errors specifically
+      if (aiError?.message && (aiError.message.includes('API_KEY') || aiError.message.includes('invalid'))) {
+        console.error('🔐 INVALID API KEY ERROR:', aiError.message)
+        return NextResponse.json({
+          success: false,
+          error: 'Invalid API configuration',
+          message: 'Medical AI service configuration error. Please contact support.',
+          code: 'INVALID_API_KEY',
+          details: aiError.message
+        }, { status: 500 })
+      }
+      
+      // Handle network errors
+      if (aiError?.message && aiError.message.includes('fetch')) {
+        console.error('🌐 NETWORK ERROR:', aiError.message)
+        return NextResponse.json({
+          success: false,
+          error: 'Network connectivity issue',
+          message: 'Unable to connect to AI service. Please check your internet connection and try again.',
+          code: 'NETWORK_ERROR'
+        }, { status: 500 })
+      }
+      
+      // MEDICAL SAFETY: Provide safe fallback response for other errors
       return NextResponse.json({
         success: false,
         error: 'Medical AI analysis failed',
         message: 'Unable to analyze voice recording. Please fill the medical form manually for accuracy.',
         fallbackAdvice: 'For your safety, please describe your symptoms clearly in the form fields or consult with a healthcare professional.',
-        code: 'MEDICAL_AI_ERROR'
+        code: 'MEDICAL_AI_ERROR',
+        details: aiError?.message || 'Unknown error'
       }, { status: 500 })
     }
 
@@ -192,7 +247,8 @@ EXAMPLE OUTPUT:
         success: false,
         error: 'Medical voice analysis failed',
         message: 'Unable to process voice recording for medical analysis. Please fill the form manually.',
-        code: 'ANALYSIS_ERROR'
+        code: 'ANALYSIS_ERROR',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )

@@ -43,11 +43,14 @@ export async function GET(req: NextRequest) {
       }, { status: 404 })
     }
 
-    if (!doctor.isAvailable || !doctor.isVerified) {
+    if (!doctor.isAvailable) {
       return NextResponse.json({ 
         error: 'Doctor is not available for appointments' 
       }, { status: 400 })
     }
+    
+    // Allow booking with unverified doctors to support newly registered doctors
+    // Removed !doctor.isVerified condition
 
     // Get start and end of the requested date
     const startOfDay = new Date(requestDate)
@@ -90,7 +93,7 @@ export async function GET(req: NextRequest) {
         slotDateTime.setHours(hour, minute, 0, 0)
         
         // Check if this slot conflicts with existing appointments
-        const hasConflict = existingAppointments.some(appointment => {
+        const hasConflict = existingAppointments.some((appointment: any) => {
           const appointmentStart = new Date(appointment.scheduledDate)
           const appointmentEnd = new Date(appointmentStart.getTime() + (appointment.duration || 30) * 60000)
           

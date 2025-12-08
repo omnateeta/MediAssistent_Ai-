@@ -121,11 +121,8 @@ export default function BookAppointmentPage() {
         if (res.ok) {
           const data = await res.json()
           if (data.success && data.specializations.length > 0) {
-            // Filter database specializations to match registration form
-            const filteredSpecializations = data.specializations.filter((spec: string) => 
-              registrationSpecializations.includes(spec)
-            )
-            setSpecializations(filteredSpecializations.length > 0 ? filteredSpecializations : registrationSpecializations)
+            // Use all specializations from database
+            setSpecializations(data.specializations)
           } else {
             // Use registration form specializations as fallback
             setSpecializations(registrationSpecializations)
@@ -343,23 +340,32 @@ export default function BookAppointmentPage() {
   }
 
   // Analyze voice recording with Gemini AI
-  const analyzeVoiceRecording = async (audioBlob: Blob) => {
+  const analyzeVoiceRecording = async (audioBlobToAnalyze?: Blob) => {
+    const blob = audioBlobToAnalyze || audioBlob;
+    if (!blob) return
+    
     setIsAnalyzing(true)
     
     try {
+      console.log('🎤 Initiating medical-grade voice analysis...')
+      
       // More lenient validation for brief recordings
-      if (audioBlob.size < 500) {
+      if (blob.size < 500) {
         throw new Error('Recording too short. Please record for at least 3 seconds.')
       }
       
       const formData = new FormData()
-      formData.append('audio', audioBlob, 'medical-voice-recording.webm')
+      formData.append('audio', blob, 'medical-voice-recording.webm')
       
       // Add timeout to prevent hanging
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
       
-      const response = await fetch('/api/patient/analyze-voice-gemini', {
+      // First try the Gemini AI endpoint
+      console.log('📡 Sending request to Gemini AI...')
+      alert('🎙️ Analyzing your voice recording with Google Gemini AI... This may take a few seconds.')
+      
+      let response = await fetch('/api/patient/analyze-voice-gemini', {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -368,12 +374,44 @@ export default function BookAppointmentPage() {
       
       clearTimeout(timeoutId)
       
+      // Log response status for debugging
+      console.log('📊 Gemini API Response Status:', response.status)
+      
+      // Check if we got a quota exceeded response from our backend
+      if (response.status === 429) {
+        const errorData = await response.json().catch(() => ({}))
+        console.log('🚨 Quota Error Details:', errorData)
+        
+        // Only fall back if it's specifically our QUOTA_EXCEEDED code
+        if (errorData.code === 'QUOTA_EXCEEDED') {
+          console.log('🔄 QUOTA EXCEEDED - Switching to fallback AI system')
+          alert('⚠️ Gemini AI service is temporarily unavailable due to usage limits.\n\nSwitching to our backup analysis system...')
+          
+          // Try the fallback endpoint
+          response = await fetch('/api/patient/analyze-voice', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          })
+        } else {
+          // If it's a 429 but not our specific code, throw an error
+          throw new Error('Gemini AI service is temporarily unavailable. Please try again later.')
+        }
+      }
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Medical AI analysis service temporarily unavailable')
+        console.error('❌ API Error Response:', errorData)
+        throw new Error(errorData.error || `Medical AI analysis failed with status ${response.status}`)
       }
       
       const result = await response.json()
+      console.log('✅ API Success Response:', result)
+      
+      // Check if this is a fallback response
+      if (result.isFallback) {
+        alert('ℹ️ Note: This analysis is from our backup system as the primary AI service is temporarily unavailable.')
+      }
       
       // MEDICAL SAFETY: Validate AI response structure
       if (!result.success || !result.analysis) {
@@ -417,7 +455,8 @@ Please seek immediate medical attention if these symptoms apply to you.`)
         ...analysis,
         isHighConfidence,
         medicalValidation: result.medicalValidation || {},
-        disclaimer: result.disclaimer || 'AI analysis for reference only. Professional medical evaluation required.'
+        disclaimer: result.disclaimer || 'AI analysis for reference only. Professional medical evaluation required.',
+        provider: result.provider || 'Fallback Medical AI System'
       })
       
       // MEDICAL ACCURACY: Auto-fill even with lower confidence for brief recordings
@@ -433,14 +472,37 @@ Please seek immediate medical attention if these symptoms apply to you.`)
         voiceNote: analysis.transcription // Store full medical transcription
       }))
       
-      // Provide feedback based on confidence level
-      if (isHighConfidence) {
+      // Provide feedback based on confidence level and provider
+      const isFallbackSystem = result.provider && result.provider.includes('Fallback')
+      const isGeminiSystem = result.provider && result.provider.includes('Gemini')
+      
+      if (isHighConfidence && isGeminiSystem) {
         console.log('✅ MEDICAL ANALYSIS COMPLETE:', {
-          provider: result.provider,
+          provider: result.provider || 'Fallback Medical AI System',
           confidence: analysis.confidence,
           urgency: analysis.urgencyLevel,
           medicalValidation: result.medicalValidation
         })
+        
+        alert(`✅ Voice Analysis Complete!
+        
+Provider: ${result.provider}
+Confidence: ${Math.round(analysis.confidence * 100)}%
+
+The form has been auto-filled with the analysis results. Please review and adjust as needed.`)
+      } else if (isFallbackSystem) {
+        console.warn('⚠️ FALLBACK ANALYSIS PROVIDED:', {
+          confidence: analysis.confidence,
+          transcription: analysis.transcription.slice(0, 100) + '...'
+        })
+        
+        // Notify user about fallback system usage
+        alert(`ℹ️ Backup Analysis Generated
+
+Confidence: ${Math.round(analysis.confidence * 100)}%
+Provider: ${result.provider}
+
+The AI has generated a description from your recording using our backup system. Please review and edit the information in the form fields as needed.`)
       } else {
         console.warn('⚠️ LOW-CONFIDENCE ANALYSIS PROVIDED:', {
           confidence: analysis.confidence,
@@ -455,11 +517,11 @@ Confidence: ${Math.round(analysis.confidence * 100)}%
 The AI has generated a brief description from your recording. Please review and edit the information in the form fields as needed.`)
       }
       
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('🚨 MEDICAL AI ANALYSIS ERROR:', error)
       
       // Handle timeout specifically
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         alert(`⏱️ Analysis Timeout
 
 The voice analysis is taking longer than expected. Please try:
@@ -482,6 +544,7 @@ Please fill the medical form manually or try recording again with clearer speech
       setIsAnalyzing(false)
     }
   }
+
 
   // Play/pause recorded audio
   const handlePlayPause = () => {
@@ -1499,23 +1562,22 @@ Please fill the medical form manually or try recording again with clearer speech
                         id="file-upload"
                         disabled={uploadingFiles}
                       />
-                      <label htmlFor="file-upload">
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          className="cursor-pointer" 
-                          disabled={uploadingFiles}
-                        >
-                          {uploadingFiles ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                              Uploading...
-                            </>
-                          ) : (
-                            'Choose Files'
-                          )}
-                        </Button>
-                      </label>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        className="cursor-pointer" 
+                        disabled={uploadingFiles}
+                        onClick={() => document.getElementById('file-upload')?.click()}
+                      >
+                        {uploadingFiles ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                            Uploading...
+                          </>
+                        ) : (
+                          'Choose Files'
+                        )}
+                      </Button>
                     </div>
                     <p className="mt-2 text-xs text-gray-500">
                       Supported: PDF, JPG, PNG, DOC, DOCX (Max 10MB each)

@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
           has: specialization  // Array contains the specialization
         },
         isAvailable: true,     // Only available doctors
-        isVerified: true       // Only verified doctors
+        // Include both verified and unverified doctors to show newly uploaded doctors
+        // isVerified: true    
       },
       include: {
         user: {
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     })
 
     // Format the response to match frontend expectations
-    const formattedDoctors = doctors.map(doctor => ({
+    const formattedDoctors = doctors.map((doctor: any) => ({
       id: doctor.id,
       userId: doctor.user.id,
       name: doctor.user.name || 'Unknown Doctor',

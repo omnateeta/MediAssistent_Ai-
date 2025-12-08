@@ -69,13 +69,13 @@ export default function HomePage() {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed',
+        backgroundAttachment: 'scroll',
         minHeight: '100vh',
         width: '100%',
       }}
     >
-      {/* Overlay for readability */}
-      <div className="absolute inset-0 bg-white/70 dark:bg-black/50 pointer-events-none z-0" />
+      {/* Overlay for readability - reduced opacity */}
+      <div className="absolute inset-0 bg-white/30 dark:bg-black/30 pointer-events-none z-0" />
       <div className="relative z-10">
         {/* Hero Section */}
         <section className="relative overflow-hidden py-20 sm:py-32">
@@ -236,7 +236,7 @@ export default function HomePage() {
                 <Button size="xl" variant="secondary" asChild>
                   <Link href="/auth/signup">Start Free Trial</Link>
                 </Button>
-                <Button size="xl" variant="outline" className="border-white text-white hover:bg-white hover:text-blue-600" asChild>
+                <Button size="xl" variant="outline" className="border-white text-blue-800 hover:bg-white hover:text-blue-600" asChild>
                   <Link href="/contact">Contact Sales</Link>
                 </Button>
               </div>

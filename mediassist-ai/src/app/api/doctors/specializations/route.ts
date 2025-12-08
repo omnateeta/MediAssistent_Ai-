@@ -34,9 +34,10 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      specializations: filteredSpecializations.length > 0 ? filteredSpecializations : registrationSpecializations,
-      total: filteredSpecializations.length,
-      availableInDatabase: uniqueSpecializations
+      specializations: uniqueSpecializations.length > 0 ? uniqueSpecializations : registrationSpecializations,
+      total: uniqueSpecializations.length,
+      availableInDatabase: uniqueSpecializations,
+      filtered: filteredSpecializations
     })
 
   } catch (error) {

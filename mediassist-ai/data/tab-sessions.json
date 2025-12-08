@@ -1,6 +1,14 @@
 {
   "sessions": [
     {
+      "token": "6e46b5a3-c5b4-4e8b-ac43-e160091345c4",
+      "userId": "cmiw02r2r0000vbrkl5rgs66i",
+      "email": "p@gmail.com",
+      "role": "PATIENT",
+      "createdAt": "2025-12-08T08:11:39.910Z",
+      "expiresAt": "2025-12-09T08:11:39.910Z"
+    },
+    {
       "token": "3c787bfd-7f25-49fe-8522-b5c06547cc25",
       "userId": "cmgbw0hs40000vbw8tb1smwjq",
       "email": "test@gmail.com",
@@ -8,7 +16,7 @@
       "createdAt": "2025-11-03T11:08:34.138Z",
       "expiresAt": "2025-11-04T11:08:34.138Z"
     },
-    {  
+    {
       "token": "b06fbf81-6934-4290-a008-1af087440136",
       "userId": "cmgd93pni0002vbk4cjbwp5vy",
       "email": "avi@gmail.com",

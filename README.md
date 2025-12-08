@@ -19,7 +19,7 @@ MediAssist AI revolutionizes healthcare delivery by combining cutting-edge artif
 ## 🚀 Tech Stack
 
 ### Frontend
-- **Next.js 14** - React framework with App Router
+- **Next.js 14** - React framework with App Router  
 - **TypeScript** - Type-safe development
 - **TailwindCSS** - Utility-first CSS framework
 - **Framer Motion** - Smooth animations and transitions

@@ -77,5 +77,5 @@ Verified the implementation with a test script that:
 3. `src/app/doctor/appointments/page.tsx` - Updated to include create button
 4. `src/app/api/doctor/patients/route.ts` - Enhanced to support basic patient lists
 
-## Result
+## Result   
 Doctors can now directly create appointments for patients, and those appointments immediately appear in the patient's appointment list, resolving the issue where "doctor appointments were not getting in the Patient Appointments".

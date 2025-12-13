@@ -1,4 +1,4 @@
-# MediAssist AI - Production Dockerfile
+# MediAssist AI - Production Dockerfile 
 FROM node:18-alpine AS base
 
 # Install dependencies only when needed
